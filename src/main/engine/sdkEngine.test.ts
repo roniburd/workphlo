@@ -28,4 +28,26 @@ describe('SdkEngine', () => {
     // interrupt before run resets to not-aborted; verify interrupt mid-stream instead:
     expect(pulled).toBe(1)
   })
+
+  it('surfaces a synchronous query failure as error + turn_end', async () => {
+    const eng = createSdkEngine({ query: () => { throw new Error('auth failed') } })
+    const got: EngineEvent[] = []
+    await expect((async () => { for await (const ev of eng.run({ prompt: 'x' })) got.push(ev) })()).resolves.toBeUndefined()
+    expect(got).toEqual([{ kind: 'error', message: 'auth failed' }, { kind: 'turn_end', sessionId: '' }])
+  })
+
+  it('surfaces a mid-stream rejection as error + turn_end after prior events', async () => {
+    async function* boom() {
+      yield { type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'partial' } } }
+      throw new Error('stream died')
+    }
+    const eng = createSdkEngine({ query: () => boom() })
+    const got: EngineEvent[] = []
+    for await (const ev of eng.run({ prompt: 'x' })) got.push(ev)
+    expect(got).toEqual([
+      { kind: 'text_delta', text: 'partial' },
+      { kind: 'error', message: 'stream died' },
+      { kind: 'turn_end', sessionId: '' },
+    ])
+  })
 })
