@@ -44,4 +44,34 @@ test.describe('app boot', () => {
     await expect(win.getByText('Demo')).toBeVisible()
     await expect(win.getByText('Round 1')).toBeVisible()
   })
+
+  test('selecting a session renders the template-scaffolded section canvas', async ({ win }) => {
+    await win.evaluate(async () => {
+      const api = (
+        window as unknown as {
+          workphlo: {
+            createProject(name: string): Promise<unknown>
+            createSession(projectId: string, name: string): Promise<unknown>
+          }
+        }
+      ).workphlo
+      await api.createProject('Canvas')
+      await api.createSession('projects/canvas', 'Slice')
+    })
+    await win.reload()
+    await win.waitForLoadState('domcontentloaded')
+
+    // Before selection, the canvas shows its empty hint.
+    await expect(win.getByText(/select a session/i)).toBeVisible()
+
+    await win.getByText('Slice').click()
+
+    // The spec-design template's four sections render as typed cells.
+    for (const title of ['Summary', 'Requirements', 'Design', 'Open Questions']) {
+      await expect(win.getByRole('heading', { name: title })).toBeVisible()
+    }
+    // Freshly scaffolded sections are empty with a placeholder + status badge.
+    await expect(win.getByText('Not generated yet.').first()).toBeVisible()
+    await expect(win.getByTestId('section-summary').getByText(/empty/i)).toBeVisible()
+  })
 })

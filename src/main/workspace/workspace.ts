@@ -2,7 +2,16 @@ import { mkdir, writeFile, readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { slugify } from './slug'
 import { abs, manifestPath, projectsDir } from './paths'
-import type { ProjectMeta, SessionMeta, TreeNode, EngineKind } from '../../shared/types'
+import type {
+  ProjectMeta,
+  SessionMeta,
+  TreeNode,
+  EngineKind,
+  SessionDoc,
+  SectionStatus
+} from '../../shared/types'
+import { getTemplate, scaffoldDocument } from '../templates/templates'
+import { parseDocument, serializeDocument } from '../document/document'
 
 export async function createWorkspace(root: string): Promise<void> {
   await mkdir(projectsDir(root), { recursive: true })
@@ -33,11 +42,41 @@ export async function createSession(
 ): Promise<SessionMeta> {
   const id = join(projectId, 'sessions', slugify(name)).replaceAll('\\', '/')
   await mkdir(join(abs(root, id), 'artifacts'), { recursive: true })
-  const meta: SessionMeta = { id, name, templateId, engine, status: 'empty' }
+
+  // Seed the document from the template scaffold (empty typed sections) and
+  // initialize a per-section status map. Unknown templates yield an empty doc.
+  const template = getTemplate(templateId)
+  const doc = template ? scaffoldDocument(template) : { sections: [] }
+  const sectionStatus: Record<string, SectionStatus> = {}
+  for (const s of doc.sections) sectionStatus[s.id] = 'empty'
+
+  const meta: SessionMeta = { id, name, templateId, engine, status: 'empty', sectionStatus }
   await writeFile(join(abs(root, id), 'session.json'), JSON.stringify(meta, null, 2))
-  await writeFile(join(abs(root, id), 'document.md'), '')
+  await writeFile(
+    join(abs(root, id), 'document.md'),
+    doc.sections.length ? serializeDocument(doc) : ''
+  )
   await writeFile(join(abs(root, id), 'transcript.jsonl'), '')
   return meta
+}
+
+// Read a session's metadata (engine, status, per-section status), or null.
+export async function loadSessionMeta(
+  root: string,
+  sessionId: string
+): Promise<SessionMeta | null> {
+  return readMeta<SessionMeta>(abs(root, sessionId), 'session.json')
+}
+
+// Read and parse a session's document.md into its typed sections.
+export async function loadDocument(root: string, sessionId: string): Promise<SessionDoc> {
+  let md = ''
+  try {
+    md = await readFile(join(abs(root, sessionId), 'document.md'), 'utf8')
+  } catch {
+    return { sections: [] }
+  }
+  return parseDocument(md)
 }
 
 async function readMeta<T>(dir: string, file: string): Promise<T | null> {

@@ -17,6 +17,7 @@ export interface SessionMeta {
   templateId: string
   engine: EngineKind
   status: string
+  sectionStatus?: Record<string, SectionStatus>
 }
 export type SectionType =
   'summary' | 'requirements' | 'diff' | 'code' | 'review' | 'perf' | 'open-qs'
@@ -31,6 +32,23 @@ export interface Section {
 }
 export interface SessionDoc {
   sections: Section[]
+}
+// Per-section lifecycle state. Lives in session.json (volatile), keyed by section id.
+export type SectionStatus = 'empty' | 'generating' | 'ready' | 'stale' | 'error'
+// A template section: the scaffold the app owns (id/type/title/hat + context recipe).
+export interface TemplateSection {
+  id: string
+  type: SectionType
+  title: string
+  hat: string
+  format?: SectionFormat
+  context?: string[]
+}
+export interface SectionTemplate {
+  id: string
+  name: string
+  sections: TemplateSection[]
+  dependencies?: Record<string, string[]>
 }
 export interface TokenUsage {
   inputTokens?: number

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { TreePane } from './components/TreePane'
-import { Transcript } from './components/Transcript' // built in Task 8
-import { PromptBar } from './components/PromptBar' // built in Task 8
+import { SectionCanvas } from './components/SectionCanvas'
+import { PromptBar } from './components/PromptBar'
 import { useStore } from './store'
 
 export default function App(): React.JSX.Element {
@@ -13,12 +13,12 @@ export default function App(): React.JSX.Element {
     }
   }, [appendEvent])
   return (
-    <div className="flex h-screen">
-      <aside className="w-64 border-r overflow-auto">
+    <div className="flex h-screen bg-slate-50">
+      <aside className="w-64 overflow-auto border-r bg-white">
         <TreePane />
       </aside>
       <main className="flex flex-1 flex-col">
-        <Transcript />
+        <SectionCanvas />
         <PromptBar />
       </main>
     </div>
