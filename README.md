@@ -1,34 +1,18 @@
-# wp
+# workphlo
 
-An Electron application with React and TypeScript
+A local, Electron-based, Obsidian/VSCode-like workbench for driving Claude Code.
+Instead of a scrolling transcript, each session produces a **live document** made
+of typed **sections** ("cells"), each owned by a specialist agent ("hat") with its
+own engine + model.
 
-## Recommended IDE Setup
-
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+See the design spec and implementation plans under `docs/superpowers/`.
 
 ## Project Setup
 
-### Install
-
 ```bash
-$ npm install
-```
-
-### Development
-
-```bash
-$ npm run dev
-```
-
-### Build
-
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
+npm install      # install dependencies
+npm run dev      # run the app in development
+npm test         # run the Vitest suite
+npm run typecheck
+npm run build    # typecheck + build
 ```

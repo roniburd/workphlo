@@ -1,10 +1,10 @@
 {
-  "name": "wp",
-  "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "name": "workphlo",
+  "version": "0.0.0",
+  "description": "Local Electron workbench for driving Claude Code as a live notebook-style document",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "roniburd",
+  "homepage": "https://github.com/roniburd/workphlo",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
