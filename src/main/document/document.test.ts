@@ -34,4 +34,21 @@ describe('document parser', () => {
     const doc: SessionDoc = { sections: [{ id: 'a', type: 'code', title: 'The "Design"', hat: 'architect', format: 'md', body: 'x' }] }
     expect(parseDocument(serializeDocument(doc)).sections[0].title).toBe('The "Design"')
   })
+
+  it('round-trips a title ending in a backslash', () => {
+    const doc: SessionDoc = { sections: [{ id: 'a', type: 'code', title: 'C:\\', hat: 'architect', format: 'md', body: 'x' }] }
+    expect(parseDocument(serializeDocument(doc)).sections[0].title).toBe('C:\\')
+  })
+
+  it('round-trips a title containing the close-delimiter arrow', () => {
+    const doc: SessionDoc = {
+      sections: [{ id: 'a', type: 'code', title: 'Before --> After', hat: 'architect', format: 'md', body: 'x' }],
+    }
+    expect(parseDocument(serializeDocument(doc)).sections[0].title).toBe('Before --> After')
+  })
+
+  it('round-trips a title containing a bare >', () => {
+    const doc: SessionDoc = { sections: [{ id: 'a', type: 'code', title: 'a > b', hat: 'architect', format: 'md', body: 'x' }] }
+    expect(parseDocument(serializeDocument(doc)).sections[0].title).toBe('a > b')
+  })
 })
