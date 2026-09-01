@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -59,9 +59,6 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
   const root = join(app.getPath('userData'), 'workspace')
   await createWorkspace(root)
   registerIpc(root, () => mainWindow)
@@ -73,6 +70,9 @@ app.whenReady().then(async () => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+}).catch((err) => {
+  console.error('startup failed', err)
+  app.quit()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

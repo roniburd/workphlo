@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import type { TreeNode, EngineEvent } from '../shared/types'
 
 // Custom APIs for renderer
@@ -23,17 +22,11 @@ const workphlo = {
 // just add to the DOM global.
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', {})
     contextBridge.exposeInMainWorld('workphlo', workphlo)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts)
-  window.api = {}
   // @ts-ignore (define in dts)
   window.workphlo = workphlo
 }
