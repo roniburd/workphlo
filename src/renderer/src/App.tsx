@@ -1,26 +1,26 @@
-import electronLogo from './assets/electron.svg'
+import { useEffect } from 'react'
+import { TreePane } from './components/TreePane'
+import { Transcript } from './components/Transcript' // built in Task 8
+import { PromptBar } from './components/PromptBar' // built in Task 8
+import { useStore } from './store'
 
-function App(): React.JSX.Element {
+export default function App(): React.JSX.Element {
+  const appendEvent = useStore((s) => s.appendEvent)
+  useEffect(() => {
+    const off = window.workphlo.onEngineEvent(({ event }) => appendEvent(event))
+    return () => {
+      off()
+    }
+  }, [appendEvent])
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
-      </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
-        </div>
-      </div>
-    </>
+    <div className="flex h-screen">
+      <aside className="w-64 border-r overflow-auto">
+        <TreePane />
+      </aside>
+      <main className="flex flex-1 flex-col">
+        <Transcript />
+        <PromptBar />
+      </main>
+    </div>
   )
 }
-
-export default App
