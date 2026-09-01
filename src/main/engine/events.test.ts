@@ -22,6 +22,14 @@ describe('messageToEvents', () => {
   it('ignores unrelated stream events', () => {
     expect(messageToEvents({ type: 'stream_event', event: { type: 'message_start' } })).toEqual([])
   })
+  it('maps a thinking block start', () => {
+    expect(messageToEvents({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'thinking', thinking: 'hmm' } } }))
+      .toEqual([{ kind: 'thinking', text: 'hmm' }])
+  })
+  it('maps a tool_result', () => {
+    expect(messageToEvents({ type: 'tool_result', id: 't1', is_error: true }))
+      .toEqual([{ kind: 'tool_result', id: 't1', isError: true }])
+  })
 })
 
 describe('parseCliLine', () => {
