@@ -8,7 +8,14 @@ export function createCliEngine(deps: { spawn?: typeof realSpawn } = {}): AgentE
   let child: ReturnType<typeof realSpawn> | null = null
   return {
     async *run(req: RunRequest): AsyncIterable<EngineEvent> {
-      const args = ['-p', req.prompt, '--output-format', 'stream-json', '--include-partial-messages', '--verbose']
+      const args = [
+        '-p',
+        req.prompt,
+        '--output-format',
+        'stream-json',
+        '--include-partial-messages',
+        '--verbose'
+      ]
       if (req.model) args.push('--model', req.model)
       if (req.resume) args.push('--resume', req.resume)
       if (req.allowedTools?.length) args.push('--allowedTools', req.allowedTools.join(','))

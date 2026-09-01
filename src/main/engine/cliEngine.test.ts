@@ -29,8 +29,16 @@ function fakeErrorSpawn(err: Error) {
 describe('CliEngine', () => {
   it('streams normalized events parsed from stdout NDJSON', async () => {
     const lines = [
-      JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } } }),
-      JSON.stringify({ type: 'result', subtype: 'success', session_id: 'abc', usage: { input_tokens: 1, output_tokens: 2 } })
+      JSON.stringify({
+        type: 'stream_event',
+        event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } }
+      }),
+      JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        session_id: 'abc',
+        usage: { input_tokens: 1, output_tokens: 2 }
+      })
     ]
     const eng = createCliEngine({ spawn: fakeSpawn(lines) })
     const got: EngineEvent[] = []

@@ -5,7 +5,9 @@ import { join } from 'node:path'
 import { createWorkspace, createProject, createSession, loadTree } from './workspace'
 
 let root: string
-beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'wf-')) })
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'wf-'))
+})
 
 describe('workspace file model', () => {
   it('creates the base layout with a manifest', async () => {

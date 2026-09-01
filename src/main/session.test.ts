@@ -7,11 +7,15 @@ import { runSessionPrompt } from './session'
 import type { AgentEngine, EngineEvent } from '../shared/types'
 
 let root: string
-beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'wf-')) })
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'wf-'))
+})
 
 const fakeEngine = (events: EngineEvent[]): AgentEngine => ({
-  async *run() { for (const e of events) yield e },
-  interrupt() {},
+  async *run() {
+    for (const e of events) yield e
+  },
+  interrupt() {}
 })
 
 describe('runSessionPrompt', () => {
@@ -21,8 +25,15 @@ describe('runSessionPrompt', () => {
     const s = await createSession(root, p.id, 'S', 'spec-design', 'cli')
     const seen: EngineEvent[] = []
     await runSessionPrompt(root, s.id, 'hello', (e) => seen.push(e), {
-      createEngine: () => fakeEngine([{ kind: 'text_delta', text: 'ok' }, { kind: 'turn_end', sessionId: 'x' }]),
+      createEngine: () =>
+        fakeEngine([
+          { kind: 'text_delta', text: 'ok' },
+          { kind: 'turn_end', sessionId: 'x' }
+        ])
     })
-    expect(seen).toEqual([{ kind: 'text_delta', text: 'ok' }, { kind: 'turn_end', sessionId: 'x' }])
+    expect(seen).toEqual([
+      { kind: 'text_delta', text: 'ok' },
+      { kind: 'turn_end', sessionId: 'x' }
+    ])
   })
 })

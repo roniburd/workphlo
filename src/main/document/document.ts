@@ -35,7 +35,7 @@ export function parseDocument(md: string): SessionDoc {
       title: attrs.title ?? '',
       hat: attrs.hat ?? '',
       format: (attrs.format as SectionFormat) ?? 'md',
-      body: md.slice(bodyStart, closeIdx).replace(/^\n/, '').replace(/\n$/, ''),
+      body: md.slice(bodyStart, closeIdx).replace(/^\n/, '').replace(/\n$/, '')
     })
     OPEN.lastIndex = closeIdx + CLOSE.length
   }
@@ -43,10 +43,12 @@ export function parseDocument(md: string): SessionDoc {
 }
 
 export function serializeDocument(doc: SessionDoc): string {
-  return doc.sections
-    .map((s) => {
-      const title = s.title.replace(/\\/g, '\\\\').replace(/>/g, '\\>').replace(/"/g, '\\"')
-      return `<!-- wf:section id=${s.id} type=${s.type} title="${title}" hat=${s.hat} format=${s.format} -->\n${s.body}\n${CLOSE}`
-    })
-    .join('\n') + '\n'
+  return (
+    doc.sections
+      .map((s) => {
+        const title = s.title.replace(/\\/g, '\\\\').replace(/>/g, '\\>').replace(/"/g, '\\"')
+        return `<!-- wf:section id=${s.id} type=${s.type} title="${title}" hat=${s.hat} format=${s.format} -->\n${s.body}\n${CLOSE}`
+      })
+      .join('\n') + '\n'
+  )
 }

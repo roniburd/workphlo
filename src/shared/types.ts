@@ -18,7 +18,8 @@ export interface SessionMeta {
   engine: EngineKind
   status: string
 }
-export type SectionType = 'summary' | 'requirements' | 'diff' | 'code' | 'review' | 'perf' | 'open-qs'
+export type SectionType =
+  'summary' | 'requirements' | 'diff' | 'code' | 'review' | 'perf' | 'open-qs'
 export type SectionFormat = 'html' | 'md'
 export interface Section {
   id: string

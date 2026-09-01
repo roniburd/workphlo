@@ -2,7 +2,10 @@ import { query as realQuery } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentEngine, EngineEvent, RunRequest } from '../../shared/types'
 import { messageToEvents, type RawMessage } from './events'
 
-export type SdkQueryFn = (args: { prompt: string; options?: Record<string, unknown> }) => AsyncIterable<unknown>
+export type SdkQueryFn = (args: {
+  prompt: string
+  options?: Record<string, unknown>
+}) => AsyncIterable<unknown>
 
 export function createSdkEngine(deps: { query?: SdkQueryFn } = {}): AgentEngine {
   const queryFn: SdkQueryFn = deps.query ?? (realQuery as unknown as SdkQueryFn)
@@ -20,8 +23,8 @@ export function createSdkEngine(deps: { query?: SdkQueryFn } = {}): AgentEngine 
             allowedTools: req.allowedTools ?? [],
             cwd: req.cwd,
             resume: req.resume,
-            includePartialMessages: true,
-          },
+            includePartialMessages: true
+          }
         })
       } catch (err) {
         yield { kind: 'error', message: (err as Error).message }
@@ -42,6 +45,8 @@ export function createSdkEngine(deps: { query?: SdkQueryFn } = {}): AgentEngine 
         if (!sawTurnEnd) yield { kind: 'turn_end', sessionId: '' }
       }
     },
-    interrupt() { aborted = true },
+    interrupt() {
+      aborted = true
+    }
   }
 }

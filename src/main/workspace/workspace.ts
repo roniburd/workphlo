@@ -11,7 +11,11 @@ export async function createWorkspace(root: string): Promise<void> {
   await writeFile(manifestPath(root), JSON.stringify({ version: 1 }, null, 2))
 }
 
-export async function createProject(root: string, name: string, parentId?: string): Promise<ProjectMeta> {
+export async function createProject(
+  root: string,
+  name: string,
+  parentId?: string
+): Promise<ProjectMeta> {
   const base = parentId ? join(parentId) : 'projects'
   const id = join(base, slugify(name)).replaceAll('\\', '/')
   await mkdir(abs(root, id), { recursive: true })
@@ -20,7 +24,13 @@ export async function createProject(root: string, name: string, parentId?: strin
   return meta
 }
 
-export async function createSession(root: string, projectId: string, name: string, templateId: string, engine: EngineKind): Promise<SessionMeta> {
+export async function createSession(
+  root: string,
+  projectId: string,
+  name: string,
+  templateId: string,
+  engine: EngineKind
+): Promise<SessionMeta> {
   const id = join(projectId, 'sessions', slugify(name)).replaceAll('\\', '/')
   await mkdir(join(abs(root, id), 'artifacts'), { recursive: true })
   const meta: SessionMeta = { id, name, templateId, engine, status: 'empty' }
@@ -31,8 +41,11 @@ export async function createSession(root: string, projectId: string, name: strin
 }
 
 async function readMeta<T>(dir: string, file: string): Promise<T | null> {
-  try { return JSON.parse(await readFile(join(dir, file), 'utf8')) as T }
-  catch { return null }
+  try {
+    return JSON.parse(await readFile(join(dir, file), 'utf8')) as T
+  } catch {
+    return null
+  }
 }
 
 export async function loadTree(root: string): Promise<TreeNode[]> {
@@ -41,7 +54,11 @@ export async function loadTree(root: string): Promise<TreeNode[]> {
 
 async function listProjects(dir: string, idBase: string): Promise<TreeNode[]> {
   let entries: string[] = []
-  try { entries = await readdir(dir) } catch { return [] }
+  try {
+    entries = await readdir(dir)
+  } catch {
+    return []
+  }
   const nodes: TreeNode[] = []
   for (const name of entries) {
     const full = join(dir, name)
@@ -58,7 +75,11 @@ async function listProjects(dir: string, idBase: string): Promise<TreeNode[]> {
 
 async function listSessions(dir: string, idBase: string): Promise<TreeNode[]> {
   let entries: string[] = []
-  try { entries = await readdir(dir) } catch { return [] }
+  try {
+    entries = await readdir(dir)
+  } catch {
+    return []
+  }
   const nodes: TreeNode[] = []
   for (const name of entries) {
     const meta = await readMeta<SessionMeta>(join(dir, name), 'session.json')
