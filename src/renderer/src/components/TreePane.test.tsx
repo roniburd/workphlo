@@ -27,7 +27,15 @@ beforeEach(() => {
     interrupt: vi.fn().mockResolvedValue(undefined),
     onEngineEvent: vi.fn().mockReturnValue(() => {}),
     onSectionEvent: vi.fn().mockReturnValue(() => {}),
-    onSectionStatus: vi.fn().mockReturnValue(() => {})
+    onSectionStatus: vi.fn().mockReturnValue(() => {}),
+    refreshSection: vi.fn().mockResolvedValue(undefined),
+    refreshAll: vi.fn().mockResolvedValue(undefined),
+    askSection: vi.fn().mockResolvedValue(undefined),
+    appendSection: vi.fn(),
+    splitSection: vi.fn(),
+    onThreadEvent: vi.fn().mockReturnValue(() => {}),
+    onThreadStatus: vi.fn().mockReturnValue(() => {}),
+    onDocChanged: vi.fn().mockReturnValue(() => {})
   }
 })
 

@@ -54,7 +54,15 @@ beforeEach(() => {
     interrupt: vi.fn().mockResolvedValue(undefined),
     onEngineEvent: vi.fn().mockReturnValue(() => {}),
     onSectionEvent: vi.fn().mockReturnValue(() => {}),
-    onSectionStatus: vi.fn().mockReturnValue(() => {})
+    onSectionStatus: vi.fn().mockReturnValue(() => {}),
+    refreshSection: vi.fn().mockResolvedValue(undefined),
+    refreshAll: vi.fn().mockResolvedValue(undefined),
+    askSection: vi.fn().mockResolvedValue(undefined),
+    appendSection: vi.fn(),
+    splitSection: vi.fn(),
+    onThreadEvent: vi.fn().mockReturnValue(() => {}),
+    onThreadStatus: vi.fn().mockReturnValue(() => {}),
+    onDocChanged: vi.fn().mockReturnValue(() => {})
   }
   useStore.setState({
     tree: [],
@@ -161,5 +169,178 @@ describe('SectionCanvas', () => {
     render(<SectionCanvas />)
     fireEvent.click(screen.getByRole('button', { name: /generate all/i }))
     expect(window.workphlo.generateAll).toHaveBeenCalledWith('projects/p/sessions/s')
+  })
+})
+
+describe('SectionCanvas P2 — stale / refresh / append', () => {
+  it('shows the stale badge and refreshes that section on click', () => {
+    useStore.setState({
+      sectionStatus: { summary: 'stale', design: 'ready', delta: 'ready', 'open-qs': 'ready' }
+    })
+    render(<SectionCanvas />)
+    const cell = screen.getByTestId('section-summary')
+    expect(within(cell).getByText('stale')).toBeInTheDocument()
+    fireEvent.click(within(cell).getByRole('button', { name: /refresh/i }))
+    expect(window.workphlo.refreshSection).toHaveBeenCalledWith('projects/p/sessions/s', 'summary')
+  })
+
+  it('enables "Refresh stale" only when a section is stale and wires refreshAll', () => {
+    useStore.setState({ sectionStatus: { summary: 'ready', design: 'ready' } })
+    const { rerender } = render(<SectionCanvas />)
+    expect(screen.getByRole('button', { name: /refresh stale/i })).toBeDisabled()
+    useStore.setState({ sectionStatus: { summary: 'stale', design: 'ready' } })
+    rerender(<SectionCanvas />)
+    const btn = screen.getByRole('button', { name: /refresh stale/i })
+    expect(btn).not.toBeDisabled()
+    fireEvent.click(btn)
+    expect(window.workphlo.refreshAll).toHaveBeenCalledWith('projects/p/sessions/s')
+  })
+
+  it('appends a new section via the + Add section control', async () => {
+    ;(window.workphlo.appendSection as ReturnType<typeof vi.fn>).mockResolvedValue({
+      doc,
+      sectionStatus: {},
+      newSectionId: 'summary-2'
+    })
+    vi.spyOn(window, 'prompt').mockReturnValue('Notes')
+    useStore.setState({ sectionStatus: { summary: 'ready' } })
+    render(<SectionCanvas />)
+    fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    expect(window.workphlo.appendSection).toHaveBeenCalledWith('projects/p/sessions/s', {
+      type: 'summary',
+      title: 'Notes',
+      hat: 'summarizer',
+      format: 'md',
+      body: ''
+    })
+  })
+})
+
+describe('SectionCanvas P2 — threads', () => {
+  it('renders a section-scoped thread with its quote and agent answer', () => {
+    useStore.setState({
+      sectionStatus: { summary: 'ready' },
+      threads: {
+        t1: {
+          id: 't1',
+          sectionId: 'summary',
+          kind: 'explain',
+          status: 'ready',
+          createdAt: 'x',
+          updatedAt: 'x',
+          anchor: {
+            sectionId: 'summary',
+            quote: 'All good',
+            prefix: '',
+            suffix: '',
+            startHint: 0,
+            bodyHash: 'h',
+            state: 'orphaned'
+          },
+          messages: [
+            { id: 'u', role: 'user', text: 'explain', ts: 'x' },
+            { id: 'a', role: 'agent', text: 'Because it is fine.', ts: 'x' }
+          ]
+        }
+      }
+    })
+    render(<SectionCanvas />)
+    const cell = screen.getByTestId('section-summary')
+    expect(within(cell).getByText('Because it is fine.')).toBeInTheDocument()
+    expect(within(cell).getByText(/all good/i)).toBeInTheDocument()
+    // Orphaned anchor is badged, never silently dropped.
+    expect(within(cell).getByText(/anchor lost/i)).toBeInTheDocument()
+  })
+})
+
+describe('SectionCanvas P2 — ask menu (selection)', () => {
+  const fakeSelection = (quote: string): Selection =>
+    ({
+      isCollapsed: false,
+      rangeCount: 1,
+      toString: () => quote,
+      getRangeAt: () => ({
+        cloneRange: () => ({
+          selectNodeContents: () => {},
+          setEnd: () => {},
+          toString: () => ''
+        }),
+        getBoundingClientRect: () => ({
+          top: 0,
+          left: 5,
+          bottom: 10,
+          right: 0,
+          width: 0,
+          height: 0
+        })
+      })
+    }) as unknown as Selection
+
+  it('md/code selection opens the ask menu and Explain calls askSection with the anchor', () => {
+    useStore.setState({ sectionStatus: { summary: 'ready', design: 'ready' } })
+    vi.spyOn(window, 'getSelection').mockReturnValue(fakeSelection('const'))
+    render(<SectionCanvas />)
+    const cell = screen.getByTestId('section-design')
+    fireEvent.mouseUp(within(cell).getByText('const x = 1'))
+    const menu = screen.getByRole('menu', { name: /ask about selection/i })
+    fireEvent.click(within(menu).getByRole('button', { name: /explain/i }))
+    expect(window.workphlo.askSection).toHaveBeenCalledWith(
+      'projects/p/sessions/s',
+      'design',
+      expect.objectContaining({
+        intent: 'explain',
+        selectedText: 'const',
+        anchor: expect.objectContaining({ sectionId: 'design', quote: 'const', startHint: 0 })
+      })
+    )
+  })
+
+  it('free-text ask submits intent "free" with the typed note', () => {
+    useStore.setState({ sectionStatus: { design: 'ready' } })
+    vi.spyOn(window, 'getSelection').mockReturnValue(fakeSelection('const'))
+    render(<SectionCanvas />)
+    const cell = screen.getByTestId('section-design')
+    fireEvent.mouseUp(within(cell).getByText('const x = 1'))
+    const menu = screen.getByRole('menu', { name: /ask about selection/i })
+    fireEvent.change(within(menu).getByRole('textbox'), { target: { value: 'why const?' } })
+    fireEvent.click(within(menu).getByRole('button', { name: /^ask$/i }))
+    expect(window.workphlo.askSection).toHaveBeenCalledWith(
+      'projects/p/sessions/s',
+      'design',
+      expect.objectContaining({ intent: 'free', freeText: 'why const?' })
+    )
+  })
+
+  it('Split here calls splitSection at the selection offset', () => {
+    ;(window.workphlo.splitSection as ReturnType<typeof vi.fn>).mockResolvedValue({
+      doc,
+      sectionStatus: {},
+      newSectionId: 'design-2'
+    })
+    useStore.setState({ sectionStatus: { design: 'ready' } })
+    vi.spyOn(window, 'getSelection').mockReturnValue(fakeSelection('x = 1'))
+    render(<SectionCanvas />)
+    const cell = screen.getByTestId('section-design')
+    fireEvent.mouseUp(within(cell).getByText('const x = 1'))
+    const menu = screen.getByRole('menu', { name: /ask about selection/i })
+    fireEvent.click(within(menu).getByRole('button', { name: /split here/i }))
+    expect(window.workphlo.splitSection).toHaveBeenCalledWith(
+      'projects/p/sessions/s',
+      'design',
+      6,
+      undefined
+    )
+  })
+
+  it('ignores postMessage selections whose source is not this section iframe', () => {
+    useStore.setState({ sectionStatus: { summary: 'ready' } })
+    render(<SectionCanvas />)
+    // Spoofed source (window, not the iframe) → no menu.
+    const evt = new MessageEvent('message', {
+      data: { type: 'wf:selection', sectionId: 'summary', quote: 'All good', startHint: 0 }
+    })
+    Object.defineProperty(evt, 'source', { value: window })
+    window.dispatchEvent(evt)
+    expect(screen.queryByRole('menu', { name: /ask about selection/i })).not.toBeInTheDocument()
   })
 })

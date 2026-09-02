@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 interface WorkphloFixtures {
+  userDataDir: string
   app: ElectronApplication
   win: Page
   consoleErrors: string[]
@@ -17,9 +18,15 @@ interface WorkphloFixtures {
 // Launches the built Electron app (out/main/index.js via `.`) with an isolated,
 // throwaway workspace so tests never touch the user's real userData dir.
 export const test = base.extend<WorkphloFixtures>({
+  // The isolated userData dir. `<userDataDir>/workspace` is the on-disk
+  // workspace root; tests that need to seed real app state (e.g. mark a section
+  // stale) edit session.json under it — no fake generation required.
   // eslint-disable-next-line no-empty-pattern
-  app: async ({}, use) => {
-    const userDataDir = await mkdtemp(join(tmpdir(), 'workphlo-e2e-'))
+  userDataDir: async ({}, use) => {
+    const dir = await mkdtemp(join(tmpdir(), 'workphlo-e2e-'))
+    await use(dir)
+  },
+  app: async ({ userDataDir }, use) => {
     const app = await electron.launch({
       args: ['.', `--user-data-dir=${userDataDir}`],
       env: { ...process.env, NODE_ENV: 'test' }

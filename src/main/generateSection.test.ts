@@ -6,7 +6,8 @@ import {
   createWorkspace,
   createProject,
   createSession,
-  loadSessionMeta
+  loadSessionMeta,
+  setSectionStatus
 } from './workspace/workspace'
 import { generateSection } from './session'
 import { abs } from './workspace/paths'
@@ -40,7 +41,7 @@ describe('generateSection', () => {
       'requirements',
       (m) => {
         if (m.type === 'status') statuses.push(m.status)
-        else if (m.event.kind === 'text_delta') deltas.push(m.event.text)
+        else if (m.type === 'event' && m.event.kind === 'text_delta') deltas.push(m.event.text)
       },
       {
         createEngine: () =>
@@ -63,6 +64,39 @@ describe('generateSection', () => {
     const transcript = await readFile(join(abs(root, s.id), 'transcript.jsonl'), 'utf8')
     expect(transcript).toContain('text_delta')
     expect(transcript).toContain('turn_end')
+  })
+
+  it('emits a stale message for ready dependents when a section is (re)generated', async () => {
+    // 'design' and 'summary' read 'requirements' (template context). With them
+    // already 'ready', regenerating 'requirements' must explicitly stale them
+    // (spec §6) and surface their ids so the renderer flips them.
+    await createWorkspace(root)
+    const p = await createProject(root, 'P')
+    const s = await createSession(root, p.id, 'S6', 'spec-design', 'cli')
+    await setSectionStatus(root, s.id, 'design', 'ready')
+    await setSectionStatus(root, s.id, 'summary', 'ready')
+
+    const staled: string[] = []
+    await generateSection(
+      root,
+      s.id,
+      'requirements',
+      (m) => {
+        if (m.type === 'stale') staled.push(...m.sectionIds)
+      },
+      {
+        createEngine: () =>
+          fakeEngine([
+            { kind: 'text_delta', text: '<p>new reqs</p>' },
+            { kind: 'turn_end', sessionId: 'x' }
+          ])
+      }
+    )
+    expect(staled).toContain('design')
+    expect(staled).toContain('summary')
+    const meta = await loadSessionMeta(root, s.id)
+    expect(meta?.sectionStatus?.design).toBe('stale')
+    expect(meta?.sectionStatus?.summary).toBe('stale')
   })
 
   it('sets status error when the engine emits an error event', async () => {

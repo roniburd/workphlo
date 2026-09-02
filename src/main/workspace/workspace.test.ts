@@ -14,9 +14,13 @@ import {
   setSectionModel,
   resolveModel,
   loadWorkspaceConfig,
-  appendTranscript
+  appendTranscript,
+  upsertThread,
+  appendThreadMessage,
+  setThreadStatus,
+  markDependentsStale
 } from './workspace'
-import type { Hat } from '../../shared/types'
+import type { Hat, Thread } from '../../shared/types'
 
 let root: string
 beforeEach(async () => {
@@ -165,5 +169,112 @@ describe('workspace section writers', () => {
     expect(lines).toHaveLength(2)
     expect(JSON.parse(lines[0])).toEqual({ kind: 'text_delta', text: 'hi' })
     expect(JSON.parse(lines[1]).kind).toBe('turn_end')
+  })
+
+  it('scope-tags transcript lines when a scope is supplied', async () => {
+    const id = await seed()
+    await appendTranscript(root, id, { kind: 'text_delta', text: 'hi' }, { threadId: 't1' })
+    await appendTranscript(root, id, { kind: 'text_delta', text: 'bare' })
+    const lines = (await readFile(join(root, id, 'transcript.jsonl'), 'utf8')).trim().split('\n')
+    expect(JSON.parse(lines[0])).toEqual({ kind: 'text_delta', text: 'hi', threadId: 't1' })
+    // no scope => byte-identical to the P0 format
+    expect(JSON.parse(lines[1])).toEqual({ kind: 'text_delta', text: 'bare' })
+  })
+})
+
+describe('workspace thread persistence', () => {
+  async function seed(): Promise<string> {
+    await createWorkspace(root)
+    const p = await createProject(root, 'Proj')
+    const s = await createSession(root, p.id, 'S', 'spec-design', 'cli')
+    return s.id
+  }
+
+  function makeThread(id: string, sectionId: string): Thread {
+    return {
+      id,
+      sectionId,
+      kind: 'free',
+      status: 'idle',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    }
+  }
+
+  it('upserts a thread into session.json keyed by id', async () => {
+    const id = await seed()
+    await upsertThread(root, id, makeThread('t1', 'summary'))
+    const meta = await loadSessionMeta(root, id)
+    expect(meta?.threads?.t1).toMatchObject({ id: 't1', sectionId: 'summary', status: 'idle' })
+  })
+
+  it('appends a message and bumps updatedAt', async () => {
+    const id = await seed()
+    await upsertThread(root, id, makeThread('t1', 'summary'))
+    await appendThreadMessage(root, id, 't1', {
+      id: 'm1',
+      role: 'user',
+      text: 'explain this',
+      ts: '2026-02-02T00:00:00.000Z'
+    })
+    const meta = await loadSessionMeta(root, id)
+    expect(meta?.threads?.t1.messages).toHaveLength(1)
+    expect(meta?.threads?.t1.messages[0].text).toBe('explain this')
+    expect(meta?.threads?.t1.updatedAt).not.toBe('2026-01-01T00:00:00.000Z')
+  })
+
+  it('sets thread status', async () => {
+    const id = await seed()
+    await upsertThread(root, id, makeThread('t1', 'summary'))
+    await setThreadStatus(root, id, 't1', 'generating')
+    expect((await loadSessionMeta(root, id))?.threads?.t1.status).toBe('generating')
+  })
+
+  it('throws when appending/setting status on a missing thread', async () => {
+    const id = await seed()
+    await expect(
+      appendThreadMessage(root, id, 'nope', { id: 'm', role: 'user', text: 'x', ts: 'now' })
+    ).rejects.toThrow()
+    await expect(setThreadStatus(root, id, 'nope', 'ready')).rejects.toThrow()
+  })
+})
+
+describe('markDependentsStale', () => {
+  async function seed(): Promise<string> {
+    await createWorkspace(root)
+    const p = await createProject(root, 'Proj')
+    const s = await createSession(root, p.id, 'S', 'spec-design', 'cli')
+    return s.id
+  }
+
+  it('marks ready dependents stale and returns their ids', async () => {
+    const id = await seed()
+    // spec-design deps: summary <- [requirements, design], open-qs <- [design]
+    await setSectionStatus(root, id, 'summary', 'ready')
+    await setSectionStatus(root, id, 'open-qs', 'ready')
+    const staled = await markDependentsStale(root, id, 'design')
+    expect(staled.sort()).toEqual(['open-qs', 'summary'])
+    const meta = await loadSessionMeta(root, id)
+    expect(meta?.sectionStatus?.summary).toBe('stale')
+    expect(meta?.sectionStatus?.['open-qs']).toBe('stale')
+  })
+
+  it('skips empty and generating dependents', async () => {
+    const id = await seed()
+    await setSectionStatus(root, id, 'summary', 'generating')
+    await setSectionStatus(root, id, 'open-qs', 'ready')
+    // summary stays 'empty'? no, it's generating; requirements untouched
+    const staled = await markDependentsStale(root, id, 'design')
+    expect(staled).toEqual(['open-qs'])
+    const meta = await loadSessionMeta(root, id)
+    expect(meta?.sectionStatus?.summary).toBe('generating') // skipped
+  })
+
+  it('returns [] when the changed section has no dependents', async () => {
+    const id = await seed()
+    await setSectionStatus(root, id, 'summary', 'ready')
+    // summary is a target (dependsOn), nothing depends on it
+    expect(await markDependentsStale(root, id, 'summary')).toEqual([])
   })
 })
