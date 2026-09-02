@@ -5,14 +5,33 @@ import type { TreeNode } from '../../../shared/types'
 function Node({ node }: { node: TreeNode }): React.JSX.Element {
   const select = useStore((s) => s.select)
   const active = useStore((s) => s.activeSessionId)
+  const loadTree = useStore((s) => s.loadTree)
+  const addSession = async (): Promise<void> => {
+    const name = window.prompt('Session name')?.trim()
+    if (!name) return
+    await window.workphlo.createSession(node.id, name)
+    await loadTree()
+  }
   return (
     <li>
-      <span
-        className={`cursor-pointer ${active === node.id ? 'font-bold' : ''}`}
-        onClick={() => node.type === 'session' && select(node.id)}
-      >
-        <span aria-hidden="true">{node.type === 'project' ? '📁' : '📄'}</span>{' '}
-        <span>{node.name}</span>
+      <span className="group flex items-center justify-between gap-1">
+        <span
+          className={`cursor-pointer ${active === node.id ? 'font-bold' : ''}`}
+          onClick={() => node.type === 'session' && select(node.id)}
+        >
+          <span aria-hidden="true">{node.type === 'project' ? '📁' : '📄'}</span>{' '}
+          <span>{node.name}</span>
+        </span>
+        {node.type === 'project' && (
+          <button
+            aria-label={`Add session to ${node.name}`}
+            title="New session"
+            className="px-1 text-xs text-slate-400 opacity-0 hover:text-slate-700 group-hover:opacity-100"
+            onClick={() => void addSession()}
+          >
+            + Session
+          </button>
+        )}
       </span>
       {node.children.length > 0 && (
         <ul className="pl-4">
@@ -31,11 +50,30 @@ export function TreePane(): React.JSX.Element {
   useEffect(() => {
     void loadTree()
   }, [loadTree])
+  const addProject = async (): Promise<void> => {
+    const name = window.prompt('Project name')?.trim()
+    if (!name) return
+    await window.workphlo.createProject(name)
+    await loadTree()
+  }
   return (
-    <ul className="p-2 text-sm">
-      {tree.map((n) => (
-        <Node key={n.id} node={n} />
-      ))}
-    </ul>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b px-2 py-1.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Projects
+        </span>
+        <button
+          className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white"
+          onClick={() => void addProject()}
+        >
+          + Project
+        </button>
+      </div>
+      <ul className="flex-1 overflow-auto p-2 text-sm">
+        {tree.map((n) => (
+          <Node key={n.id} node={n} />
+        ))}
+      </ul>
+    </div>
   )
 }

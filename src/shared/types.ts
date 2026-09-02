@@ -11,6 +11,24 @@ export interface ProjectMeta {
   children: string[] // child ids, ordered
 }
 export type EngineKind = 'cli' | 'sdk'
+// Workspace-level config persisted in workphlo.json. Supplies the final
+// fallback tier for model resolution (spec §2.2): section override → hat
+// default → workspace default.
+export interface WorkspaceConfig {
+  version: number
+  defaultEngine: EngineKind
+  defaultModel?: string
+}
+// A hat models an agent role (spec §5): a system prompt + engine/model defaults
+// + allowed tools. App-defined built-ins live in code; users can add more later.
+export interface Hat {
+  id: string
+  name: string
+  systemPrompt: string
+  engine: EngineKind
+  model?: string
+  allowedTools?: string[]
+}
 export interface SessionMeta {
   id: string
   name: string
@@ -18,6 +36,9 @@ export interface SessionMeta {
   engine: EngineKind
   status: string
   sectionStatus?: Record<string, SectionStatus>
+  // Per-section model overrides (spec §2.2). Section override wins over the
+  // hat default during model resolution. Keyed by section id.
+  sectionOverrides?: Record<string, { model?: string }>
 }
 export type SectionType =
   'summary' | 'requirements' | 'diff' | 'code' | 'review' | 'perf' | 'open-qs'
@@ -69,6 +90,9 @@ export interface RunRequest {
   allowedTools?: string[]
   cwd?: string
   resume?: string
+  // Resolved context recipe for the run (spec §2.1): section bodies, goal, and
+  // repo notes concatenated into a single bundle prepended to the prompt.
+  contextBundle?: string
 }
 export interface AgentEngine {
   run(req: RunRequest): AsyncIterable<EngineEvent>

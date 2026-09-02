@@ -11,7 +11,13 @@ beforeEach(() => {
     createProject: vi.fn(),
     createSession: vi.fn(),
     runPrompt: vi.fn().mockResolvedValue(undefined),
-    onEngineEvent: vi.fn().mockReturnValue(() => {})
+    generateSection: vi.fn().mockResolvedValue(undefined),
+    generateAll: vi.fn().mockResolvedValue(undefined),
+    setSectionModel: vi.fn(),
+    interrupt: vi.fn().mockResolvedValue(undefined),
+    onEngineEvent: vi.fn().mockReturnValue(() => {}),
+    onSectionEvent: vi.fn().mockReturnValue(() => {}),
+    onSectionStatus: vi.fn().mockReturnValue(() => {})
   }
 })
 

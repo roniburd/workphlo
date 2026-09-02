@@ -42,6 +42,19 @@ export function parseDocument(md: string): SessionDoc {
   return { sections }
 }
 
+// Immutable update of a single section's body by id. Returns the doc unchanged
+// (same reference) when no section matches, so callers can cheaply detect a
+// no-op. Other section objects are preserved by reference.
+export function updateSectionBody(doc: SessionDoc, id: string, body: string): SessionDoc {
+  let changed = false
+  const sections = doc.sections.map((s) => {
+    if (s.id !== id) return s
+    changed = true
+    return { ...s, body }
+  })
+  return changed ? { sections } : doc
+}
+
 export function serializeDocument(doc: SessionDoc): string {
   return (
     doc.sections

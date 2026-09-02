@@ -1,15 +1,24 @@
 import type { JSX } from 'react'
 import type { Section, SectionType } from '../../../shared/types'
 
+// Restrictive CSP prepended to agent HTML so it can't beacon out: the empty
+// sandbox already blocks scripts and same-origin, but subresource loads (img,
+// css @import, fetch of remote assets) would still leak. `default-src 'none'`
+// denies all network; inline styles and data: images are allowed so the markup
+// can still render richly.
+const HTML_CSP =
+  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:">'
+
 // Agent-authored HTML is rendered inside a locked-down sandboxed iframe (spec
-// §8): no scripts, no same-origin, no network — just formatted markup.
+// §8): the empty sandbox blocks scripts and same-origin, and the injected CSP
+// blocks all subresource network loads — just formatted markup.
 function HtmlBody({ body }: { body: string }): JSX.Element {
   return (
     <iframe
       title="section-html"
       sandbox=""
       className="w-full min-h-24 border-0 bg-white"
-      srcDoc={body}
+      srcDoc={HTML_CSP + body}
     />
   )
 }
