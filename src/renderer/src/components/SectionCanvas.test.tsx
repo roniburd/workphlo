@@ -202,10 +202,12 @@ describe('SectionCanvas P2 — stale / refresh / append', () => {
       sectionStatus: {},
       newSectionId: 'summary-2'
     })
-    vi.spyOn(window, 'prompt').mockReturnValue('Notes')
     useStore.setState({ sectionStatus: { summary: 'ready' } })
     render(<SectionCanvas />)
     fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    const input = screen.getByLabelText('New section title')
+    fireEvent.change(input, { target: { value: 'Notes' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
     expect(window.workphlo.appendSection).toHaveBeenCalledWith('projects/p/sessions/s', {
       type: 'summary',
       title: 'Notes',

@@ -111,4 +111,59 @@ test.describe('app boot', () => {
     // The override select offers the inherit default plus pinned model choices.
     await expect(modelSelect.locator('option')).not.toHaveCount(0)
   })
+
+  // Regression: the create flows must work through the REAL UI, not just direct
+  // IPC. They previously used window.prompt(), which Electron does not support
+  // ("prompt() is not supported."), so every + Project / + Session / + Add
+  // section click silently failed. These drive the buttons the way a user does.
+  test('creates a project and session through the UI (no window.prompt)', async ({
+    win,
+    consoleErrors
+  }) => {
+    await win.getByRole('button', { name: '+ Project' }).click()
+    await win.getByPlaceholder('Project name').fill('UiProj')
+    await win.getByPlaceholder('Project name').press('Enter')
+    await expect(win.getByText('UiProj')).toBeVisible()
+
+    // Add a session under it via its inline + Session affordance.
+    await win.getByText('UiProj').hover()
+    await win.getByRole('button', { name: 'Add session to UiProj' }).click()
+    await win.getByPlaceholder('Session name').fill('UiSess')
+    await win.getByPlaceholder('Session name').press('Enter')
+    await expect(win.getByText('UiSess')).toBeVisible()
+
+    // No "prompt() is not supported." (or any) console errors were produced.
+    expect(consoleErrors, `renderer console errors:\n${consoleErrors.join('\n')}`).toEqual([])
+  })
+
+  test('adds a section through the UI and can send a prompt', async ({ win }) => {
+    // Seed a project+session via IPC (creation itself is covered above), then
+    // drive the canvas + prompt bar through the UI.
+    await win.evaluate(async () => {
+      const api = (
+        window as unknown as {
+          workphlo: {
+            createProject(name: string): Promise<unknown>
+            createSession(projectId: string, name: string): Promise<unknown>
+          }
+        }
+      ).workphlo
+      await api.createProject('Flow')
+      await api.createSession('projects/flow', 'F1')
+    })
+    await win.reload()
+    await win.waitForLoadState('domcontentloaded')
+    await win.getByText('F1', { exact: true }).click()
+
+    // + Add section is now an inline input, not window.prompt.
+    await win.getByRole('button', { name: '+ Add section' }).click()
+    await win.getByLabel('New section title').fill('My Cell')
+    await win.getByLabel('New section title').press('Enter')
+    await expect(win.getByRole('heading', { name: 'My Cell' })).toBeVisible()
+
+    // The prompt bar accepts input and the Send click fires without error.
+    await win.getByPlaceholder('Ask the agent…').fill('hello')
+    await win.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(win.getByPlaceholder('Ask the agent…')).toHaveValue('')
+  })
 })

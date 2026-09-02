@@ -51,25 +51,33 @@ describe('TreePane', () => {
     fireEvent.click(screen.getByText('S'))
     expect(useStore.getState().activeSessionId).toBe('projects/p/sessions/s')
   })
-  it('creates a project via the + Project button', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('New Proj')
+  it('creates a project via the inline + Project input', async () => {
     render(<TreePane />)
     fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
+    const input = screen.getByPlaceholderText('Project name')
+    fireEvent.change(input, { target: { value: 'New Proj' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(window.workphlo.createProject).toHaveBeenCalledWith('New Proj'))
   })
-  it('creates a session on a project via the + Session button', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('New Sess')
+  it('creates a session on a project via the inline + Session input', async () => {
     render(<TreePane />)
     await waitFor(() => screen.getByText('P'))
     fireEvent.click(screen.getByRole('button', { name: /add session to p/i }))
+    const input = screen.getByPlaceholderText('Session name')
+    fireEvent.change(input, { target: { value: 'New Sess' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() =>
       expect(window.workphlo.createSession).toHaveBeenCalledWith('projects/p', 'New Sess')
     )
   })
-  it('does not create a project when the prompt is cancelled', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue(null)
+  it('does not create a project when the inline input is empty or cancelled', async () => {
     render(<TreePane />)
     fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
+    const input = screen.getByPlaceholderText('Project name')
+    // Empty Enter is a no-op...
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // ...and Escape dismisses the input without creating anything.
+    fireEvent.keyDown(input, { key: 'Escape' })
     expect(window.workphlo.createProject).not.toHaveBeenCalled()
   })
 })
