@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mkdtemp, readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createWorkspace, createProject, createSession, loadTree } from './workspace'
+import { createWorkspace, createProject, createSession, loadTree, loadDocument } from './workspace'
 
 let root: string
 beforeEach(async () => {
@@ -27,13 +27,32 @@ describe('workspace file model', () => {
     expect(meta.name).toBe('My First Project')
   })
 
-  it('creates a nested session with a stub document.md', async () => {
+  it('creates a nested session with a template-seeded document.md', async () => {
     await createWorkspace(root)
     const p = await createProject(root, 'Proj')
     const s = await createSession(root, p.id, 'Spec Round 1', 'spec-design', 'cli')
     expect(s.id).toBe('projects/proj/sessions/spec-round-1')
     expect((await stat(join(root, s.id, 'document.md'))).isFile()).toBe(true)
     expect((await stat(join(root, s.id, 'artifacts'))).isDirectory()).toBe(true)
+    // document.md is scaffolded from the template's sections.
+    const doc = await loadDocument(root, s.id)
+    expect(doc.sections.map((x) => x.id)).toEqual(['summary', 'requirements', 'design', 'open-qs'])
+    // session.json tracks a per-section status, all empty initially.
+    const meta = JSON.parse(await readFile(join(root, s.id, 'session.json'), 'utf8'))
+    expect(meta.sectionStatus).toEqual({
+      summary: 'empty',
+      requirements: 'empty',
+      design: 'empty',
+      'open-qs': 'empty'
+    })
+  })
+
+  it('seeds an empty document for an unknown template id', async () => {
+    await createWorkspace(root)
+    const p = await createProject(root, 'Proj')
+    const s = await createSession(root, p.id, 'Freeform', 'nope', 'cli')
+    const doc = await loadDocument(root, s.id)
+    expect(doc.sections).toEqual([])
   })
 
   it('loads a nested tree', async () => {

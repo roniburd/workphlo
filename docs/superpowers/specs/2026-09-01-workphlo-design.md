@@ -6,14 +6,14 @@ Status: Draft (iterating)
 ## 1. Context & Motivation
 
 Working with Claude Code today is a linear, ephemeral TUI conversation. When
-the real deliverable is a *document that must be iterated* — a spec, a design,
+the real deliverable is a _document that must be iterated_ — a spec, a design,
 a review — the linear chat is a poor fit: you cannot address one part of the
 output, expand only it, or have different specialists own different parts.
 
 **workphlo** is a local, Electron-based, Obsidian/VSCode-like workbench for
 driving Claude Code. Instead of a scrolling transcript, each session produces a
 **live document** made of typed **sections** ("cells"). Each section is owned
-by a specialist agent — one of the *many hats a developer wears* (architect,
+by a specialist agent — one of the _many hats a developer wears_ (architect,
 reviewer, perf analyst, security, summarizer…) — and can be independently
 generated, inspected, questioned, intervened in, expanded, and refreshed. A
 bottom prompt bar keeps the familiar Claude Code TUI feel for free-form
@@ -113,7 +113,7 @@ workspace/
 
 - **Tree nesting** = folder hierarchy. A node is `project | session`; projects
   nest arbitrarily. `project.json` holds child order.
-- **git optional:** the app runs without git; when a workspace *is* a git repo,
+- **git optional:** the app runs without git; when a workspace _is_ a git repo,
   refresh/edit can optionally commit (later phase).
 
 ### 3.1 Document model — live, notebook-style
@@ -142,15 +142,15 @@ so selections, threads, and stale-tracking survive edits:
 Each section's `type` selects a **renderer (+ editor)** from a registry, so a
 section looks right for what it holds — not one generic blob:
 
-| type          | renderer                              | body / data                        |
-|---------------|---------------------------------------|------------------------------------|
-| `summary`     | rich HTML doc view                    | HTML (default) or markdown         |
-| `requirements`| rich HTML/markdown doc view           | HTML/md                            |
-| `diff`        | Monaco/CodeMirror **merge view**      | unified diff or before/after refs  |
-| `code`        | syntax-highlighted editor             | file body + language               |
-| `review`      | annotated **findings list**           | structured findings[]              |
-| `perf`        | tables / charts (dataviz)             | structured metrics                 |
-| `open-qs`     | checklist / Q&A list                  | structured questions[]             |
+| type           | renderer                         | body / data                       |
+| -------------- | -------------------------------- | --------------------------------- |
+| `summary`      | rich HTML doc view               | HTML (default) or markdown        |
+| `requirements` | rich HTML/markdown doc view      | HTML/md                           |
+| `diff`         | Monaco/CodeMirror **merge view** | unified diff or before/after refs |
+| `code`         | syntax-highlighted editor        | file body + language              |
+| `review`       | annotated **findings list**      | structured findings[]             |
+| `perf`         | tables / charts (dataviz)        | structured metrics                |
+| `open-qs`      | checklist / Q&A list             | structured questions[]            |
 
 - **Body format:** HTML preferred (richer; rendered in a **sandboxed iframe**
   per cell), markdown accepted (`format: html | md`). Structured types
@@ -174,14 +174,30 @@ container. Per section it declares:
   "id": "spec-design",
   "name": "Spec / Design",
   "sections": [
-    { "type": "summary",      "title": "Summary",       "hat": "summarizer",
-      "context": ["session.goal", "section:requirements", "section:design"] },
-    { "type": "requirements", "title": "Requirements",  "hat": "analyst",
-      "context": ["session.goal"] },
-    { "type": "code",         "title": "Design",        "hat": "architect",
-      "context": ["section:requirements", "repo.paths"] },
-    { "type": "open-qs",      "title": "Open Questions", "hat": "architect",
-      "context": ["section:design"] }
+    {
+      "type": "summary",
+      "title": "Summary",
+      "hat": "summarizer",
+      "context": ["session.goal", "section:requirements", "section:design"]
+    },
+    {
+      "type": "requirements",
+      "title": "Requirements",
+      "hat": "analyst",
+      "context": ["session.goal"]
+    },
+    {
+      "type": "code",
+      "title": "Design",
+      "hat": "architect",
+      "context": ["section:requirements", "repo.paths"]
+    },
+    {
+      "type": "open-qs",
+      "title": "Open Questions",
+      "hat": "architect",
+      "context": ["section:design"]
+    }
   ],
   "dependencies": { "summary": ["requirements", "design"], "open-qs": ["design"] }
 }
@@ -202,8 +218,8 @@ with predefined skills, user-editable in `workspace/hats/`.
   "id": "reviewer",
   "name": "Code Reviewer",
   "systemPrompt": "…",
-  "engine": "cli",              // or "sdk"
-  "model": "…",                 // default; section may override
+  "engine": "cli", // or "sdk"
+  "model": "…", // default; section may override
   "allowedTools": ["Read", "Grep", "Bash(read-only)"],
   "skills": ["code-review"]
 }
@@ -220,8 +236,8 @@ passing the section's resolved context bundle.
   active section's thread and/or the session transcript. Slash-commands trigger
   actions (`/summary`, `/diff`, `/review`, `/fork`, `/refresh`).
 - **Highlight-to-ask (live intervene)** — select a region inside a rendered
-  section → floating menu with **pre-canned follow-ups** (*add detail*,
-  *I disagree — change this*, *explain why*, *expand*) **+ free text**. The
+  section → floating menu with **pre-canned follow-ups** (_add detail_,
+  _I disagree — change this_, _explain why_, _expand_) **+ free text**. The
   selection is anchored by `{sectionId, DOM range / text offset}` so the ask is
   scoped to exactly what was picked. Result either edits in place or opens a
   **thread** on that section; expansion may append/split cells.

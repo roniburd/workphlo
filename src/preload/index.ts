@@ -1,9 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TreeNode, EngineEvent } from '../shared/types'
+import type { TreeNode, EngineEvent, SessionDoc, SectionStatus } from '../shared/types'
 
 // Custom APIs for renderer
 const workphlo = {
   getTree: () => ipcRenderer.invoke('wf:getTree') as Promise<TreeNode[]>,
+  getDocument: (sessionId: string) =>
+    ipcRenderer.invoke('wf:getDocument', sessionId) as Promise<{
+      doc: SessionDoc
+      sectionStatus: Record<string, SectionStatus>
+    }>,
   createProject: (name: string, parentId?: string) =>
     ipcRenderer.invoke('wf:createProject', name, parentId) as Promise<TreeNode[]>,
   createSession: (projectId: string, name: string) =>

@@ -7,6 +7,7 @@ beforeEach(() => {
   useStore.setState({ transcript: '', activeSessionId: 'projects/p/sessions/s', tree: [] })
   window.workphlo = {
     getTree: vi.fn(),
+    getDocument: vi.fn().mockResolvedValue({ doc: { sections: [] }, sectionStatus: {} }),
     createProject: vi.fn(),
     createSession: vi.fn(),
     runPrompt: vi.fn().mockResolvedValue(undefined),
