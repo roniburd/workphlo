@@ -21,7 +21,21 @@ beforeEach(() => {
     createProject: vi.fn(),
     createSession: vi.fn(),
     runPrompt: vi.fn(),
-    onEngineEvent: vi.fn().mockReturnValue(() => {})
+    generateSection: vi.fn().mockResolvedValue(undefined),
+    generateAll: vi.fn().mockResolvedValue(undefined),
+    setSectionModel: vi.fn(),
+    interrupt: vi.fn().mockResolvedValue(undefined),
+    onEngineEvent: vi.fn().mockReturnValue(() => {}),
+    onSectionEvent: vi.fn().mockReturnValue(() => {}),
+    onSectionStatus: vi.fn().mockReturnValue(() => {}),
+    refreshSection: vi.fn().mockResolvedValue(undefined),
+    refreshAll: vi.fn().mockResolvedValue(undefined),
+    askSection: vi.fn().mockResolvedValue(undefined),
+    appendSection: vi.fn(),
+    splitSection: vi.fn(),
+    onThreadEvent: vi.fn().mockReturnValue(() => {}),
+    onThreadStatus: vi.fn().mockReturnValue(() => {}),
+    onDocChanged: vi.fn().mockReturnValue(() => {})
   }
 })
 
@@ -36,5 +50,26 @@ describe('TreePane', () => {
     await waitFor(() => screen.getByText('S'))
     fireEvent.click(screen.getByText('S'))
     expect(useStore.getState().activeSessionId).toBe('projects/p/sessions/s')
+  })
+  it('creates a project via the + Project button', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('New Proj')
+    render(<TreePane />)
+    fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
+    await waitFor(() => expect(window.workphlo.createProject).toHaveBeenCalledWith('New Proj'))
+  })
+  it('creates a session on a project via the + Session button', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue('New Sess')
+    render(<TreePane />)
+    await waitFor(() => screen.getByText('P'))
+    fireEvent.click(screen.getByRole('button', { name: /add session to p/i }))
+    await waitFor(() =>
+      expect(window.workphlo.createSession).toHaveBeenCalledWith('projects/p', 'New Sess')
+    )
+  })
+  it('does not create a project when the prompt is cancelled', async () => {
+    vi.spyOn(window, 'prompt').mockReturnValue(null)
+    render(<TreePane />)
+    fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
+    expect(window.workphlo.createProject).not.toHaveBeenCalled()
   })
 })

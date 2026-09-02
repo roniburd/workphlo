@@ -74,4 +74,41 @@ test.describe('app boot', () => {
     await expect(win.getByText('Not generated yet.').first()).toBeVisible()
     await expect(win.getByTestId('section-summary').getByText(/empty/i)).toBeVisible()
   })
+
+  test('exposes the generation controls on the tree and section canvas', async ({ win }) => {
+    // The "+ Project" affordance lives in the tree header and is interactive.
+    const addProject = win.getByRole('button', { name: '+ Project' })
+    await expect(addProject).toBeVisible()
+    await expect(addProject).toBeEnabled()
+
+    await win.evaluate(async () => {
+      const api = (
+        window as unknown as {
+          workphlo: {
+            createProject(name: string): Promise<unknown>
+            createSession(projectId: string, name: string): Promise<unknown>
+          }
+        }
+      ).workphlo
+      await api.createProject('Gen')
+      await api.createSession('projects/gen', 'Run')
+    })
+    await win.reload()
+    await win.waitForLoadState('domcontentloaded')
+    await win.getByText('Run').click()
+
+    // The canvas-level "Generate all" control exists and is interactive.
+    const generateAll = win.getByRole('button', { name: 'Generate all' })
+    await expect(generateAll).toBeVisible()
+    await expect(generateAll).toBeEnabled()
+
+    // Each section cell exposes a per-section Generate button and a model-override select.
+    const summary = win.getByTestId('section-summary')
+    await expect(summary.getByRole('button', { name: 'Generate' })).toBeVisible()
+    const modelSelect = summary.getByRole('combobox', { name: /Model for Summary/i })
+    await expect(modelSelect).toBeVisible()
+    await expect(modelSelect).toBeEnabled()
+    // The override select offers the inherit default plus pinned model choices.
+    await expect(modelSelect.locator('option')).not.toHaveCount(0)
+  })
 })
