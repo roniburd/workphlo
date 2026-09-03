@@ -74,10 +74,47 @@ describe('TreePane', () => {
     render(<TreePane />)
     fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
     const input = screen.getByPlaceholderText('Project name')
-    // Empty Enter is a no-op...
+    // Empty Enter is a no-op — nothing created AND the input stays open.
     fireEvent.keyDown(input, { key: 'Enter' })
-    // ...and Escape dismisses the input without creating anything.
-    fireEvent.keyDown(input, { key: 'Escape' })
     expect(window.workphlo.createProject).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText('Project name')).toBeInTheDocument()
+    // Escape actually dismisses the input (finding: assert dismissal, not just
+    // that createProject wasn't called).
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByPlaceholderText('Project name')).not.toBeInTheDocument()
+    expect(window.workphlo.createProject).not.toHaveBeenCalled()
+  })
+  it('cancels the project input on blur only when it is empty', async () => {
+    render(<TreePane />)
+    fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
+    // Empty blur (e.g. clicking elsewhere) tidies the input away.
+    fireEvent.blur(screen.getByPlaceholderText('Project name'))
+    expect(screen.queryByPlaceholderText('Project name')).not.toBeInTheDocument()
+    expect(window.workphlo.createProject).not.toHaveBeenCalled()
+
+    // Re-open, type, then blur: typed text must NOT be silently discarded.
+    fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
+    const input = screen.getByPlaceholderText('Project name')
+    fireEvent.change(input, { target: { value: 'Keep me' } })
+    fireEvent.blur(input)
+    expect(screen.getByPlaceholderText('Project name')).toBeInTheDocument()
+    expect(window.workphlo.createProject).not.toHaveBeenCalled()
+  })
+  it('cancels the session input on blur when empty and never creates on blur', async () => {
+    render(<TreePane />)
+    await waitFor(() => screen.getByText('P'))
+    fireEvent.click(screen.getByRole('button', { name: /add session to p/i }))
+    fireEvent.blur(screen.getByPlaceholderText('Session name'))
+    expect(screen.queryByPlaceholderText('Session name')).not.toBeInTheDocument()
+    expect(window.workphlo.createSession).not.toHaveBeenCalled()
+  })
+  it('submits the project via the ✓ confirm button', async () => {
+    render(<TreePane />)
+    fireEvent.click(screen.getByRole('button', { name: /\+ project/i }))
+    fireEvent.change(screen.getByPlaceholderText('Project name'), {
+      target: { value: 'Via Button' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(window.workphlo.createProject).toHaveBeenCalledWith('Via Button'))
   })
 })

@@ -1,45 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { InlineInput } from './InlineInput'
 import type { TreeNode } from '../../../shared/types'
-
-// Inline single-line text entry used in place of window.prompt, which Electron
-// does not support (it throws "prompt() is not supported."). Enter submits a
-// non-empty trimmed value; Escape or blur cancels.
-function InlineInput({
-  placeholder,
-  onSubmit,
-  onCancel
-}: {
-  placeholder: string
-  onSubmit: (value: string) => void
-  onCancel: () => void
-}): React.JSX.Element {
-  const [value, setValue] = useState('')
-  return (
-    <input
-      autoFocus
-      className="mt-1 w-full rounded border px-1 py-0.5 text-sm"
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          const name = value.trim()
-          if (name) onSubmit(name)
-        } else if (e.key === 'Escape') {
-          onCancel()
-        }
-      }}
-      onBlur={onCancel}
-    />
-  )
-}
 
 function Node({ node }: { node: TreeNode }): React.JSX.Element {
   const select = useStore((s) => s.select)
   const active = useStore((s) => s.activeSessionId)
   const loadTree = useStore((s) => s.loadTree)
   const [addingSession, setAddingSession] = useState(false)
+  const addSessionBtn = useRef<HTMLButtonElement>(null)
   const addSession = async (name: string): Promise<void> => {
     setAddingSession(false)
     await window.workphlo.createSession(node.id, name)
@@ -57,9 +26,12 @@ function Node({ node }: { node: TreeNode }): React.JSX.Element {
         </span>
         {node.type === 'project' && (
           <button
+            ref={addSessionBtn}
             aria-label={`Add session to ${node.name}`}
             title="New session"
             className="px-1 text-xs text-slate-400 opacity-0 hover:text-slate-700 group-hover:opacity-100"
+            // Idempotent: clicking again while the input is open is a no-op, so
+            // it never blows away text the user has already typed.
             onClick={() => setAddingSession(true)}
           >
             + Session
@@ -71,6 +43,7 @@ function Node({ node }: { node: TreeNode }): React.JSX.Element {
           placeholder="Session name"
           onSubmit={(name) => void addSession(name)}
           onCancel={() => setAddingSession(false)}
+          restoreFocusRef={addSessionBtn}
         />
       )}
       {node.children.length > 0 && (
@@ -88,6 +61,7 @@ export function TreePane(): React.JSX.Element {
   const tree = useStore((s) => s.tree)
   const loadTree = useStore((s) => s.loadTree)
   const [addingProject, setAddingProject] = useState(false)
+  const addProjectBtn = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     void loadTree()
   }, [loadTree])
@@ -103,6 +77,7 @@ export function TreePane(): React.JSX.Element {
           Projects
         </span>
         <button
+          ref={addProjectBtn}
           className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white"
           onClick={() => setAddingProject(true)}
         >
@@ -116,6 +91,7 @@ export function TreePane(): React.JSX.Element {
               placeholder="Project name"
               onSubmit={(name) => void addProject(name)}
               onCancel={() => setAddingProject(false)}
+              restoreFocusRef={addProjectBtn}
             />
           </li>
         )}

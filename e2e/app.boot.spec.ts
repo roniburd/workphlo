@@ -136,7 +136,7 @@ test.describe('app boot', () => {
     expect(consoleErrors, `renderer console errors:\n${consoleErrors.join('\n')}`).toEqual([])
   })
 
-  test('adds a section through the UI and can send a prompt', async ({ win }) => {
+  test('adds a section through the UI and can send a prompt', async ({ win, consoleErrors }) => {
     // Seed a project+session via IPC (creation itself is covered above), then
     // drive the canvas + prompt bar through the UI.
     await win.evaluate(async () => {
@@ -165,5 +165,9 @@ test.describe('app boot', () => {
     await win.getByPlaceholder('Ask the agent…').fill('hello')
     await win.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(win.getByPlaceholder('Ask the agent…')).toHaveValue('')
+
+    // No unsupported-API or other console errors surfaced while driving the
+    // canvas + prompt bar (the original bug threw "prompt() is not supported.").
+    expect(consoleErrors, `renderer console errors:\n${consoleErrors.join('\n')}`).toEqual([])
   })
 })
