@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, within, fireEvent } from '@testing-library/react'
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { SectionCanvas } from './SectionCanvas'
 import { useStore } from '../store'
 import type { SessionDoc } from '../../../shared/types'
@@ -202,10 +202,12 @@ describe('SectionCanvas P2 — stale / refresh / append', () => {
       sectionStatus: {},
       newSectionId: 'summary-2'
     })
-    vi.spyOn(window, 'prompt').mockReturnValue('Notes')
     useStore.setState({ sectionStatus: { summary: 'ready' } })
     render(<SectionCanvas />)
     fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    const input = screen.getByLabelText('New section title')
+    fireEvent.change(input, { target: { value: 'Notes' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
     expect(window.workphlo.appendSection).toHaveBeenCalledWith('projects/p/sessions/s', {
       type: 'summary',
       title: 'Notes',
@@ -213,6 +215,72 @@ describe('SectionCanvas P2 — stale / refresh / append', () => {
       format: 'md',
       body: ''
     })
+  })
+
+  it('does not append on empty Enter, and Escape dismisses the input', () => {
+    useStore.setState({ sectionStatus: { summary: 'ready' } })
+    render(<SectionCanvas />)
+    fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    const input = screen.getByLabelText('New section title')
+    // Empty Enter is a no-op; the input stays open.
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(window.workphlo.appendSection).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('New section title')).toBeInTheDocument()
+    // Escape dismisses it without appending.
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByLabelText('New section title')).not.toBeInTheDocument()
+    expect(window.workphlo.appendSection).not.toHaveBeenCalled()
+  })
+
+  it('cancels the add-section input on blur only when empty', () => {
+    useStore.setState({ sectionStatus: { summary: 'ready' } })
+    render(<SectionCanvas />)
+    fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    // Empty blur tidies the input away.
+    fireEvent.blur(screen.getByLabelText('New section title'))
+    expect(screen.queryByLabelText('New section title')).not.toBeInTheDocument()
+    expect(window.workphlo.appendSection).not.toHaveBeenCalled()
+    // Typed text survives a blur (not silently discarded).
+    fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    const input = screen.getByLabelText('New section title')
+    fireEvent.change(input, { target: { value: 'Keep' } })
+    fireEvent.blur(input)
+    expect(screen.getByLabelText('New section title')).toBeInTheDocument()
+    expect(window.workphlo.appendSection).not.toHaveBeenCalled()
+  })
+
+  it('appends via the ✓ confirm button', async () => {
+    ;(window.workphlo.appendSection as ReturnType<typeof vi.fn>).mockResolvedValue({
+      doc,
+      sectionStatus: {},
+      newSectionId: 'summary-2'
+    })
+    useStore.setState({ sectionStatus: { summary: 'ready' } })
+    render(<SectionCanvas />)
+    fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    fireEvent.change(screen.getByLabelText('New section title'), { target: { value: 'Notes' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() =>
+      expect(window.workphlo.appendSection).toHaveBeenCalledWith(
+        'projects/p/sessions/s',
+        expect.objectContaining({ title: 'Notes' })
+      )
+    )
+  })
+
+  it('hides the add-section input and disables the trigger while a run is in flight', () => {
+    // Open the input with nothing generating...
+    useStore.setState({ sectionStatus: { summary: 'ready', design: 'ready' } })
+    const { rerender } = render(<SectionCanvas />)
+    fireEvent.click(screen.getByRole('button', { name: /add section/i }))
+    expect(screen.getByLabelText('New section title')).toBeInTheDocument()
+    // ...then a section starts generating: the input must unmount (so a late
+    // Enter can't append mid-run) and the + Add section trigger must disable.
+    useStore.setState({ sectionStatus: { summary: 'ready', design: 'generating' } })
+    rerender(<SectionCanvas />)
+    expect(screen.queryByLabelText('New section title')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add section/i })).toBeDisabled()
+    expect(window.workphlo.appendSection).not.toHaveBeenCalled()
   })
 })
 

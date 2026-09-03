@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { SectionBody } from '../sections/renderers'
 import { buildAnchor, selectionOffsets } from '../sections/anchor'
 import { AskMenu, type MenuState } from './AskMenu'
+import { InlineInput } from './InlineInput'
 import { ThreadPanel } from './ThreadPanel'
 import type { AskIntent, Section, SectionStatus, Thread } from '../../../shared/types'
 
@@ -246,6 +247,9 @@ export function SectionCanvas(): JSX.Element {
   const generateAll = useStore((s) => s.generateAll)
   const refreshAll = useStore((s) => s.refreshAll)
   const appendSection = useStore((s) => s.appendSection)
+  // Inline add-section entry (Electron has no window.prompt).
+  const [addingSection, setAddingSection] = useState(false)
+  const addSectionBtn = useRef<HTMLButtonElement>(null)
 
   if (!activeSessionId || !doc) {
     return (
@@ -259,9 +263,13 @@ export function SectionCanvas(): JSX.Element {
   const anyStale = doc.sections.some((s) => sectionStatus[s.id] === 'stale')
   const threadList = Object.values(threads)
 
-  const addSection = (): void => {
-    const title = window.prompt('New section title')?.trim()
-    if (!title) return
+  const addSection = (title: string): void => {
+    setAddingSection(false)
+    // No structural edits while a run is in flight — an append racing an
+    // in-flight body write could interleave with the atomic doc write. The
+    // trigger button is disabled while generating, but guard here too so a
+    // late Enter (generation started after the input opened) can't slip past.
+    if (anyGenerating) return
     // Append a plain text cell by default; type/hat routing is deferred (P3).
     void appendSection({ type: 'summary', title, hat: 'summarizer', format: 'md', body: '' })
   }
@@ -269,12 +277,25 @@ export function SectionCanvas(): JSX.Element {
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-auto p-4">
       <header className="flex items-center justify-end gap-2">
+        {/* Unmount the input the instant a run starts, so a mid-run Enter can't
+            fire (belt-and-suspenders with the guard in addSection). */}
+        {addingSection && !anyGenerating && (
+          <InlineInput
+            placeholder="New section title"
+            ariaLabel="New section title"
+            onSubmit={addSection}
+            onCancel={() => setAddingSection(false)}
+            restoreFocusRef={addSectionBtn}
+          />
+        )}
         <button
+          ref={addSectionBtn}
           className="rounded border px-3 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           // No structural edits while a run is in flight — an append/split racing
           // an in-flight body write could interleave with the atomic doc write.
           disabled={anyGenerating}
-          onClick={addSection}
+          // Idempotent: re-clicking while open won't discard typed text.
+          onClick={() => setAddingSection(true)}
         >
           + Add section
         </button>
