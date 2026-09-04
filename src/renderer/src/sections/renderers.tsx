@@ -62,7 +62,7 @@ function reporterScript(sectionId: string): string {
 // parent DOM, no storage, no preload bridge) lets ONLY our nonce'd reporter run
 // under the per-render nonce CSP. The parent listens for the reporter's
 // postMessages (validating e.source === this iframe) to drive the ask menu.
-function HtmlBody({
+export function HtmlBody({
   body,
   sectionId,
   frameRef
