@@ -259,3 +259,19 @@ describe('store loadDoc merge for generating sections (P2 Fix 6)', () => {
     expect(doc.sections.find((s) => s.id === 'b')!.body).toBe('new b')
   })
 })
+
+describe('store CLI session state (mode, artifact html, pty exit)', () => {
+  it('applyArtifactUpdate stores html only for the active session', () => {
+    useStore.setState({ activeSessionId: 's1', artifactHtml: '' })
+    useStore.getState().applyArtifactUpdate({ sessionId: 's2', html: '<b>other</b>' })
+    expect(useStore.getState().artifactHtml).toBe('') // ignored: not active
+    useStore.getState().applyArtifactUpdate({ sessionId: 's1', html: '<b>mine</b>' })
+    expect(useStore.getState().artifactHtml).toBe('<b>mine</b>')
+  })
+
+  it('applyPtyExit records exit for the active session', () => {
+    useStore.setState({ activeSessionId: 's1', ptyExit: null })
+    useStore.getState().applyPtyExit({ sessionId: 's1', code: 1, signal: undefined })
+    expect(useStore.getState().ptyExit).toEqual({ code: 1, signal: undefined })
+  })
+})

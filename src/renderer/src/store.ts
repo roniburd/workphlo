@@ -25,6 +25,9 @@ interface State {
   // Section-scoped conversations (P2), keyed by threadId. Populated from the
   // wf:threadStatus creation payload and grown by wf:threadEvent deltas.
   threads: Record<string, Thread>
+  mode: 'document' | 'cli'
+  artifactHtml: string
+  ptyExit: { code: number; signal?: number } | null
   loadTree: () => Promise<void>
   select: (id: string) => void
   loadDoc: () => Promise<void>
@@ -73,6 +76,9 @@ interface State {
   // driven by the html iframe's wf:anchorStates round-trip.
   resolveAnchors: (sectionId: string, renderedText: string) => void
   setThreadAnchorState: (threadId: string, state: 'anchored' | 'orphaned') => void
+  // CLI session state — artifact HTML and pty exit, guarded by activeSessionId.
+  applyArtifactUpdate: (p: { sessionId: string; html: string }) => void
+  applyPtyExit: (p: { sessionId: string; code: number; signal?: number }) => void
 }
 
 function renderEvent(e: EngineEvent): string {
@@ -101,15 +107,18 @@ export const useStore = create<State>()((set, get) => ({
   doc: null,
   sectionStatus: {},
   threads: {},
+  mode: 'document',
+  artifactHtml: '',
+  ptyExit: null,
   loadTree: async () => set({ tree: await window.workphlo.getTree() }),
   select: (id) => {
-    set({ activeSessionId: id, transcript: '', doc: null, sectionStatus: {}, threads: {} })
+    set({ activeSessionId: id, transcript: '', doc: null, sectionStatus: {}, threads: {}, artifactHtml: '', ptyExit: null, mode: 'document' })
     void get().loadDoc()
   },
   loadDoc: async () => {
     const id = get().activeSessionId
     if (!id) return
-    const { doc, sectionStatus } = await window.workphlo.getDocument(id)
+    const { doc, sectionStatus, mode } = await window.workphlo.getDocument(id)
     // Ignore a stale response if the selection changed while awaiting.
     if (get().activeSessionId !== id) return
     // Merge, don't clobber: a section streaming live (status 'generating') has a
@@ -129,7 +138,7 @@ export const useStore = create<State>()((set, get) => ({
           return sec
         })
       }
-      return { doc: merged, sectionStatus }
+      return { doc: merged, sectionStatus, mode }
     })
   },
   appendEvent: (e) => set((s) => ({ transcript: s.transcript + renderEvent(e) })),
@@ -267,5 +276,9 @@ export const useStore = create<State>()((set, get) => ({
       const t = s.threads[threadId]
       if (!t || !t.anchor || t.anchor.state === state) return s
       return { threads: { ...s.threads, [threadId]: { ...t, anchor: { ...t.anchor, state } } } }
-    })
+    }),
+  applyArtifactUpdate: ({ sessionId, html }) =>
+    set((s) => (sessionId === s.activeSessionId ? { artifactHtml: html } : s)),
+  applyPtyExit: ({ sessionId, code, signal }) =>
+    set((s) => (sessionId === s.activeSessionId ? { ptyExit: { code, signal } } : s))
 }))
