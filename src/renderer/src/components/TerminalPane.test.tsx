@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 
 const writes: string[] = []
 const onDataCbs: Array<(d: string) => void> = []
@@ -47,5 +47,17 @@ describe('TerminalPane', () => {
     })
     const { findByText } = render(<TerminalPane sessionId="s1" />)
     expect(await findByText(/could not start cli session: nope/i)).toBeInTheDocument()
+  })
+
+  it('clears a stale start-error banner when switching to a healthy session', async () => {
+    ;(globalThis as any).window.workphlo.ptyStart = vi.fn(async (id: string) => {
+      if (id === 's1') throw new Error('nope')
+    })
+    const { rerender, findByText, queryByText } = render(<TerminalPane sessionId="s1" />)
+    expect(await findByText(/could not start cli session: nope/i)).toBeInTheDocument()
+    rerender(<TerminalPane sessionId="s2" />)
+    await waitFor(() =>
+      expect(queryByText(/could not start cli session/i)).not.toBeInTheDocument()
+    )
   })
 })

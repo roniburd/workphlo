@@ -10,6 +10,9 @@ export function TerminalPane({ sessionId }: { sessionId: string }): JSX.Element 
   const [startError, setStartError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Clear any prior session's spawn error so a stale banner doesn't survive a
+    // switch to a healthy session (this effect re-runs whenever sessionId changes).
+    setStartError(null)
     const term = new Terminal({ convertEol: true, fontSize: 13 })
     const fit = new FitAddon()
     term.loadAddon(fit)
