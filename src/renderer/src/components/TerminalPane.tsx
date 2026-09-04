@@ -1,17 +1,13 @@
-import { useEffect, useRef, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useStore } from '../store'
 
-export function TerminalPane({
-  sessionId
-}: {
-  sessionId: string
-  model?: string
-}): JSX.Element {
+export function TerminalPane({ sessionId }: { sessionId: string }): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const ptyExit = useStore((s) => s.ptyExit)
+  const [startError, setStartError] = useState<string | null>(null)
 
   useEffect(() => {
     const term = new Terminal({ convertEol: true, fontSize: 13 })
@@ -24,7 +20,9 @@ export function TerminalPane({
       /* jsdom / zero-size: keep default cols/rows */
     }
 
-    void window.workphlo.ptyStart(sessionId, term.cols, term.rows)
+    window.workphlo.ptyStart(sessionId, term.cols, term.rows).catch((err: unknown) => {
+      setStartError(String(err instanceof Error ? err.message : err))
+    })
     const offData = window.workphlo.onPtyData((p) => {
       if (p.sessionId === sessionId) term.write(p.data)
     })
@@ -49,6 +47,11 @@ export function TerminalPane({
 
   return (
     <div className="flex h-full flex-col bg-black">
+      {startError && (
+        <div className="bg-amber-100 px-3 py-1 text-xs text-amber-900">
+          Could not start CLI session: {startError}
+        </div>
+      )}
       {ptyExit && (
         <div className="bg-amber-100 px-3 py-1 text-xs text-amber-900">
           Session ended (code {ptyExit.code}

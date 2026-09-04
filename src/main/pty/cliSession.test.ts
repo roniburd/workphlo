@@ -3,15 +3,28 @@ import { createCliSessions } from './cliSession'
 import type { PtyHost } from './ptyHost'
 import type { HookService } from './hookService'
 
-function fakePtyHost() {
+function fakePtyHost(opts: { startThrows?: Error } = {}) {
   let onData: (d: string) => void = () => {}
   let onExit: (e: { code: number; signal?: number }) => void = () => {}
-  const calls: any = { started: null, writes: [] as string[], killed: [] as string[] }
+  // Mirrors the real PtyHost: has() is false until a start() call succeeds
+  // (and stays false if it throws), so a 2nd start() for the same session
+  // sees has() === true and no-ops — same as production.
+  let live = false
+  const calls: any = {
+    started: null,
+    startCount: 0,
+    writes: [] as string[],
+    killed: [] as string[],
+    killAllCalled: 0
+  }
   const host: PtyHost = {
     start(o) {
+      calls.startCount++
+      if (opts.startThrows) throw opts.startThrows
       calls.started = o
       onData = o.onData
       onExit = o.onExit
+      live = true
     },
     write(_id, d) {
       calls.writes.push(d)
@@ -20,15 +33,26 @@ function fakePtyHost() {
     kill(id) {
       calls.killed.push(id)
     },
-    has: () => true
+    killAll() {
+      calls.killAllCalled++
+    },
+    has: () => live
   }
-  return { host, calls, emitData: (d: string) => onData(d), emitExit: () => onExit({ code: 0 }) }
+  return {
+    host,
+    calls,
+    emitData: (d: string) => onData(d),
+    emitExit: () => {
+      live = false // real PtyHost drops the proc from `procs` before onExit fires
+      onExit({ code: 0 })
+    }
+  }
 }
 
 function fakeHooks(): HookService {
   return {
     port: 4321,
-    register: () => 'tok-1',
+    register: vi.fn(() => 'tok-1'),
     unregister: vi.fn(),
     close: async () => {}
   }
@@ -99,5 +123,53 @@ describe('createCliSessions', () => {
     sessions.kill('s')
     expect(pty.calls.writes).toContain('ls\n')
     expect(pty.calls.killed).toContain('s')
+  })
+
+  it('a 2nd start() for an already-live session no-ops: no re-register / re-watch', () => {
+    const pty = fakePtyHost()
+    const hooks = fakeHooks()
+    const makeWatcher = vi.fn(() => ({ check: async () => {}, stop: () => {} }))
+    const sessions = createCliSessions({
+      root: '/root',
+      hooks,
+      ptyHost: pty.host,
+      makeWatcher: makeWatcher as any,
+      send: () => {}
+    })
+    sessions.start('s', 80, 24)
+    sessions.start('s', 80, 24) // remount — pty.has() now reports live
+    expect(pty.calls.startCount).toBe(1)
+    expect(makeWatcher).toHaveBeenCalledTimes(1)
+    expect(hooks.register).toHaveBeenCalledTimes(1)
+  })
+
+  it('killAll delegates to ptyHost.killAll', () => {
+    const pty = fakePtyHost()
+    const sessions = createCliSessions({
+      root: '/root',
+      hooks: fakeHooks(),
+      ptyHost: pty.host,
+      makeWatcher: (() => ({ check: async () => {}, stop: () => {} })) as any,
+      send: () => {}
+    })
+    sessions.killAll()
+    expect(pty.calls.killAllCalled).toBe(1)
+  })
+
+  it('start tears down the watcher + hook token and rethrows when ptyHost.start throws', () => {
+    const boom = new Error('failed to start claude: ENOENT')
+    const pty = fakePtyHost({ startThrows: boom })
+    const hooks = fakeHooks()
+    const stop = vi.fn()
+    const sessions = createCliSessions({
+      root: '/root',
+      hooks,
+      ptyHost: pty.host,
+      makeWatcher: (() => ({ check: async () => {}, stop })) as any,
+      send: () => {}
+    })
+    expect(() => sessions.start('s', 80, 24)).toThrow(boom)
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(hooks.unregister).toHaveBeenCalledWith('s')
   })
 })

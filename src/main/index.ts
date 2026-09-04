@@ -79,6 +79,15 @@ app
     cliRef = cli
     registerIpc(root, () => mainWindow, cli)
 
+    // Reap every orphaned `claude` pty on quit — must not throw and block shutdown.
+    app.on('before-quit', () => {
+      try {
+        cli.killAll()
+      } catch (err) {
+        console.error('killAll on quit failed', err)
+      }
+    })
+
     createWindow()
 
     app.on('activate', function () {

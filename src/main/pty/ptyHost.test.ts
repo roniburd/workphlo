@@ -62,4 +62,28 @@ describe('PtyHost', () => {
     proc._exit!({ exitCode: 0 })
     expect(host.has('s')).toBe(false)
   })
+
+  it('killAll kills every live proc', () => {
+    const proc1 = fakeProc()
+    const proc2 = fakeProc()
+    const procs = [proc1, proc2]
+    const spawn = vi.fn(() => procs.shift()!) as unknown as PtySpawn
+    const host = createPtyHost({ spawn })
+    host.start({ sessionId: 's1', cwd: '/tmp', cols: 80, rows: 24, env: {}, onData: () => {}, onExit: () => {} })
+    host.start({ sessionId: 's2', cwd: '/tmp', cols: 80, rows: 24, env: {}, onData: () => {}, onExit: () => {} })
+    host.killAll()
+    expect(proc1.killed).toContain('SIGINT')
+    expect(proc2.killed).toContain('SIGINT')
+  })
+
+  it('start rethrows when spawn throws, and leaves no tracked proc', () => {
+    const spawn = vi.fn(() => {
+      throw new Error('ENOENT: claude not found')
+    }) as unknown as PtySpawn
+    const host = createPtyHost({ spawn })
+    expect(() =>
+      host.start({ sessionId: 's', cwd: '/tmp', cols: 80, rows: 24, env: {}, onData: () => {}, onExit: () => {} })
+    ).toThrow(/failed to start claude/)
+    expect(host.has('s')).toBe(false)
+  })
 })

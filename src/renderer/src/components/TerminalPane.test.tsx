@@ -35,9 +35,17 @@ import { TerminalPane } from './TerminalPane'
 
 describe('TerminalPane', () => {
   it('starts the pty on mount and writes inbound data to the terminal', () => {
-    render(<TerminalPane sessionId="s1" model={undefined} />)
+    render(<TerminalPane sessionId="s1" />)
     expect(ptyStart).toHaveBeenCalledWith('s1', 80, 24)
     dataListener!({ sessionId: 's1', data: 'hi' })
     expect(writes).toContain('hi')
+  })
+
+  it('shows an error banner when the pty fails to start', async () => {
+    ;(globalThis as any).window.workphlo.ptyStart = vi.fn(async () => {
+      throw new Error('nope')
+    })
+    const { findByText } = render(<TerminalPane sessionId="s1" />)
+    expect(await findByText(/could not start cli session: nope/i)).toBeInTheDocument()
   })
 })

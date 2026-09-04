@@ -37,6 +37,7 @@ export interface PtyHost {
   write(sessionId: string, data: string): void
   resize(sessionId: string, cols: number, rows: number): void
   kill(sessionId: string): void
+  killAll(): void
   has(sessionId: string): boolean
 }
 
@@ -44,18 +45,30 @@ export function createPtyHost(deps: { spawn?: PtySpawn } = {}): PtyHost {
   const spawn = deps.spawn ?? realSpawn()
   const procs = new Map<string, PtyProc>()
 
+  const killProc = (sessionId: string, proc: PtyProc): void => {
+    proc.kill('SIGINT') // graceful (equivalent to user Ctrl-C)
+    setTimeout(() => {
+      if (procs.has(sessionId)) proc.kill('SIGTERM')
+    }, 5000)
+  }
+
   return {
     start(o) {
       if (procs.has(o.sessionId)) return // one pty per session
       const args = ['--append-system-prompt', steeringSystemPrompt()]
       if (o.model) args.push('--model', o.model)
-      const proc = spawn('claude', args, {
-        name: 'xterm-256color',
-        cols: o.cols,
-        rows: o.rows,
-        cwd: o.cwd,
-        env: { ...o.env, TERM: 'xterm-256color' }
-      })
+      let proc: PtyProc
+      try {
+        proc = spawn('claude', args, {
+          name: 'xterm-256color',
+          cols: o.cols,
+          rows: o.rows,
+          cwd: o.cwd,
+          env: { ...o.env, TERM: 'xterm-256color' }
+        })
+      } catch (err) {
+        throw new Error(`failed to start claude: ${String(err)}`)
+      }
       procs.set(o.sessionId, proc)
       proc.onData(o.onData)
       proc.onExit((e) => {
@@ -72,10 +85,10 @@ export function createPtyHost(deps: { spawn?: PtySpawn } = {}): PtyHost {
     kill(sessionId) {
       const proc = procs.get(sessionId)
       if (!proc) return
-      proc.kill('SIGINT') // graceful (equivalent to user Ctrl-C)
-      setTimeout(() => {
-        if (procs.has(sessionId)) proc.kill('SIGTERM')
-      }, 5000)
+      killProc(sessionId, proc)
+    },
+    killAll() {
+      for (const [sessionId, proc] of procs) killProc(sessionId, proc)
     },
     has(sessionId) {
       return procs.has(sessionId)

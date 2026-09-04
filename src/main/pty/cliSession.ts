@@ -11,6 +11,8 @@ export interface CliSessions {
   // Triggered by a Stop/PostToolUse hook (via index.ts wiring) to force an
   // immediate artifact recheck for the session's watcher.
   recheck(sessionId: string): void
+  // Reaps every live pty (called on app quit).
+  killAll(): void
 }
 
 export function createCliSessions(o: {
@@ -31,6 +33,11 @@ export function createCliSessions(o: {
 
   return {
     start(sessionId, cols, rows, model) {
+      // A live pty already exists for this session (e.g. TerminalPane remounted
+      // on session-switch) — no-op. The pty keeps streaming and the renderer
+      // re-subscribes to wf:pty:data, so forward output still appears; we just
+      // don't re-register a hook token or spin up a second watcher.
+      if (ptyHost.has(sessionId)) return
       const cwd = abs(o.root, sessionId)
       const token = o.hooks.register(sessionId)
       const watcher = makeWatcher({
@@ -40,24 +47,30 @@ export function createCliSessions(o: {
       watchers.set(sessionId, watcher)
       // A Stop/PostToolUse hook triggers an immediate recheck (primary signal).
       // (index.ts wires hooks.onHook → this.recheck; see index.ts.)
-      ptyHost.start({
-        sessionId,
-        cwd,
-        model,
-        cols,
-        rows,
-        env: {
-          ...(process.env as Record<string, string>),
-          WORKPHLO_HOOK_PORT: String(o.hooks.port),
-          WORKPHLO_HOOK_TOKEN: token
-        },
-        onData: (data) => o.send('wf:pty:data', { sessionId, data }),
-        onExit: ({ code, signal }) => {
-          stopWatcher(sessionId)
-          o.hooks.unregister(sessionId)
-          o.send('wf:pty:exit', { sessionId, code, signal })
-        }
-      })
+      try {
+        ptyHost.start({
+          sessionId,
+          cwd,
+          model,
+          cols,
+          rows,
+          env: {
+            ...(process.env as Record<string, string>),
+            WORKPHLO_HOOK_PORT: String(o.hooks.port),
+            WORKPHLO_HOOK_TOKEN: token
+          },
+          onData: (data) => o.send('wf:pty:data', { sessionId, data }),
+          onExit: ({ code, signal }) => {
+            stopWatcher(sessionId)
+            o.hooks.unregister(sessionId)
+            o.send('wf:pty:exit', { sessionId, code, signal })
+          }
+        })
+      } catch (err) {
+        stopWatcher(sessionId)
+        o.hooks.unregister(sessionId)
+        throw err
+      }
     },
     input(sessionId, data) {
       ptyHost.write(sessionId, data)
@@ -70,6 +83,9 @@ export function createCliSessions(o: {
     },
     recheck(sessionId) {
       void watchers.get(sessionId)?.check()
+    },
+    killAll() {
+      ptyHost.killAll()
     }
   }
 }
