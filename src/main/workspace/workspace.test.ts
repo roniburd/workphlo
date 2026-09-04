@@ -85,6 +85,21 @@ describe('workspace file model', () => {
     expect(doc.sections).toEqual([])
   })
 
+  it('createSession mode=cli scaffolds the skill and skips document.md', async () => {
+    await createWorkspace(root)
+    const p = await createProject(root, 'Proj')
+    const meta = await createSession(root, p.id, 'S', 'spec-design', 'cli', 'cli')
+    expect(meta.mode).toBe('cli')
+    const skill = await readFile(
+      join(root, meta.id, '.claude/skills/workphlo-html-report/SKILL.md'),
+      'utf8'
+    )
+    expect(skill).toContain('result.html')
+    // No document sections were scaffolded.
+    const doc = await loadDocument(root, meta.id)
+    expect(doc.sections).toHaveLength(0)
+  })
+
   it('loads a nested tree', async () => {
     await createWorkspace(root)
     const p = await createProject(root, 'Proj')

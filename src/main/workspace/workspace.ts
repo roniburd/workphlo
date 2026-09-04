@@ -18,6 +18,7 @@ import type {
 import { getTemplate, scaffoldDocument } from '../templates/templates'
 import { parseDocument, serializeDocument, appendSection, splitSection } from '../document/document'
 import type { SectionType, SectionFormat } from '../../shared/types'
+import { scaffoldCliSession } from '../pty/scaffold'
 
 export async function createWorkspace(root: string): Promise<void> {
   await mkdir(projectsDir(root), { recursive: true })
@@ -55,10 +56,22 @@ export async function createSession(
   projectId: string,
   name: string,
   templateId: string,
-  engine: EngineKind
+  engine: EngineKind,
+  mode: 'document' | 'cli' = 'document'
 ): Promise<SessionMeta> {
   const id = join(projectId, 'sessions', slugify(name)).replaceAll('\\', '/')
-  await mkdir(join(abs(root, id), 'artifacts'), { recursive: true })
+  const dir = abs(root, id)
+  await mkdir(join(dir, 'artifacts'), { recursive: true })
+
+  if (mode === 'cli') {
+    // CLI mode: no document scaffold; instead seed the cwd steering (skill +
+    // hook settings). The cwd IS the session dir.
+    await scaffoldCliSession(dir)
+    const meta: SessionMeta = { id, name, templateId, engine, status: 'empty', mode }
+    await writeFile(join(dir, 'session.json'), JSON.stringify(meta, null, 2))
+    await writeFile(join(dir, 'transcript.jsonl'), '')
+    return meta
+  }
 
   // Seed the document from the template scaffold (empty typed sections) and
   // initialize a per-section status map. Unknown templates yield an empty doc.
@@ -67,13 +80,10 @@ export async function createSession(
   const sectionStatus: Record<string, SectionStatus> = {}
   for (const s of doc.sections) sectionStatus[s.id] = 'empty'
 
-  const meta: SessionMeta = { id, name, templateId, engine, status: 'empty', sectionStatus }
-  await writeFile(join(abs(root, id), 'session.json'), JSON.stringify(meta, null, 2))
-  await writeFile(
-    join(abs(root, id), 'document.md'),
-    doc.sections.length ? serializeDocument(doc) : ''
-  )
-  await writeFile(join(abs(root, id), 'transcript.jsonl'), '')
+  const meta: SessionMeta = { id, name, templateId, engine, status: 'empty', sectionStatus, mode }
+  await writeFile(join(dir, 'session.json'), JSON.stringify(meta, null, 2))
+  await writeFile(join(dir, 'document.md'), doc.sections.length ? serializeDocument(doc) : '')
+  await writeFile(join(dir, 'transcript.jsonl'), '')
   return meta
 }
 

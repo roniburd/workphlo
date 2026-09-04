@@ -20,6 +20,7 @@ import {
   type AskMessage
 } from './session'
 import { createEngine } from './engine'
+import type { CliSessions } from './pty/cliSession'
 import type {
   AgentEngine,
   AskRequest,
@@ -31,7 +32,11 @@ import type {
   SessionMeta
 } from '../shared/types'
 
-export function registerIpc(root: string, getWindow: () => BrowserWindow | null): void {
+export function registerIpc(
+  root: string,
+  getWindow: () => BrowserWindow | null,
+  cli: CliSessions
+): void {
   // Active engine per session, so wf:interrupt can stop the in-flight run. We
   // register the engine through the same DI seam generateSection already uses.
   const activeEngines = new Map<string, AgentEngine>()
@@ -143,10 +148,14 @@ export function registerIpc(root: string, getWindow: () => BrowserWindow | null)
     async (
       _e,
       sessionId: string
-    ): Promise<{ doc: SessionDoc; sectionStatus: Record<string, SectionStatus> }> => {
+    ): Promise<{
+      doc: SessionDoc
+      sectionStatus: Record<string, SectionStatus>
+      mode: 'document' | 'cli'
+    }> => {
       const doc = await loadDocument(root, sessionId)
       const meta = await loadSessionMeta(root, sessionId)
-      return { doc, sectionStatus: meta?.sectionStatus ?? {} }
+      return { doc, sectionStatus: meta?.sectionStatus ?? {}, mode: meta?.mode ?? 'document' }
     }
   )
 
@@ -155,10 +164,13 @@ export function registerIpc(root: string, getWindow: () => BrowserWindow | null)
     return loadTree(root)
   })
 
-  ipcMain.handle('wf:createSession', async (_e, projectId: string, name: string) => {
-    await createSession(root, projectId, name, 'spec-design', 'cli')
-    return loadTree(root)
-  })
+  ipcMain.handle(
+    'wf:createSession',
+    async (_e, projectId: string, name: string, mode: 'document' | 'cli' = 'document') => {
+      await createSession(root, projectId, name, 'spec-design', 'cli', mode)
+      return loadTree(root)
+    }
+  )
 
   ipcMain.handle('wf:runPrompt', async (_e, sessionId: string, prompt: string) => {
     await runSessionPrompt(root, sessionId, prompt, (event) => {
@@ -304,4 +316,13 @@ export function registerIpc(root: string, getWindow: () => BrowserWindow | null)
     aborters.get(sessionId)?.abort()
     activeEngines.get(sessionId)?.interrupt()
   })
+
+  ipcMain.handle('wf:pty:start', (_e, sessionId: string, cols: number, rows: number) => {
+    cli.start(sessionId, cols, rows)
+  })
+  ipcMain.on('wf:pty:input', (_e, sessionId: string, data: string) => cli.input(sessionId, data))
+  ipcMain.on('wf:pty:resize', (_e, sessionId: string, cols: number, rows: number) =>
+    cli.resize(sessionId, cols, rows)
+  )
+  ipcMain.handle('wf:pty:kill', (_e, sessionId: string) => cli.kill(sessionId))
 }

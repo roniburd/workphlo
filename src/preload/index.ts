@@ -26,11 +26,33 @@ const workphlo = {
     ipcRenderer.invoke('wf:getDocument', sessionId) as Promise<{
       doc: SessionDoc
       sectionStatus: Record<string, SectionStatus>
+      mode: 'document' | 'cli'
     }>,
   createProject: (name: string, parentId?: string) =>
     ipcRenderer.invoke('wf:createProject', name, parentId) as Promise<TreeNode[]>,
-  createSession: (projectId: string, name: string) =>
-    ipcRenderer.invoke('wf:createSession', projectId, name) as Promise<TreeNode[]>,
+  createSession: (projectId: string, name: string, mode: 'document' | 'cli' = 'document') =>
+    ipcRenderer.invoke('wf:createSession', projectId, name, mode) as Promise<TreeNode[]>,
+  ptyStart: (sessionId: string, cols: number, rows: number) =>
+    ipcRenderer.invoke('wf:pty:start', sessionId, cols, rows) as Promise<void>,
+  ptyInput: (sessionId: string, data: string) => ipcRenderer.send('wf:pty:input', sessionId, data),
+  ptyResize: (sessionId: string, cols: number, rows: number) =>
+    ipcRenderer.send('wf:pty:resize', sessionId, cols, rows),
+  ptyKill: (sessionId: string) => ipcRenderer.invoke('wf:pty:kill', sessionId) as Promise<void>,
+  onPtyData: (cb: (p: { sessionId: string; data: string }) => void) => {
+    const l = (_e: unknown, p: { sessionId: string; data: string }): void => cb(p)
+    ipcRenderer.on('wf:pty:data', l)
+    return () => ipcRenderer.removeListener('wf:pty:data', l)
+  },
+  onPtyExit: (cb: (p: { sessionId: string; code: number; signal?: number }) => void) => {
+    const l = (_e: unknown, p: { sessionId: string; code: number; signal?: number }): void => cb(p)
+    ipcRenderer.on('wf:pty:exit', l)
+    return () => ipcRenderer.removeListener('wf:pty:exit', l)
+  },
+  onArtifactUpdate: (cb: (p: { sessionId: string; html: string }) => void) => {
+    const l = (_e: unknown, p: { sessionId: string; html: string }): void => cb(p)
+    ipcRenderer.on('wf:artifactUpdate', l)
+    return () => ipcRenderer.removeListener('wf:artifactUpdate', l)
+  },
   runPrompt: (sessionId: string, prompt: string) =>
     ipcRenderer.invoke('wf:runPrompt', sessionId, prompt) as Promise<void>,
   generateSection: (sessionId: string, sectionId: string) =>

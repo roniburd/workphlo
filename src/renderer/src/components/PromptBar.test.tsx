@@ -25,7 +25,14 @@ beforeEach(() => {
     splitSection: vi.fn(),
     onThreadEvent: vi.fn().mockReturnValue(() => {}),
     onThreadStatus: vi.fn().mockReturnValue(() => {}),
-    onDocChanged: vi.fn().mockReturnValue(() => {})
+    onDocChanged: vi.fn().mockReturnValue(() => {}),
+    ptyStart: vi.fn().mockResolvedValue(undefined),
+    ptyInput: vi.fn(),
+    ptyResize: vi.fn(),
+    ptyKill: vi.fn().mockResolvedValue(undefined),
+    onPtyData: vi.fn().mockReturnValue(() => {}),
+    onPtyExit: vi.fn().mockReturnValue(() => {}),
+    onArtifactUpdate: vi.fn().mockReturnValue(() => {})
   }
 })
 
