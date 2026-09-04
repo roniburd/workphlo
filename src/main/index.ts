@@ -4,8 +4,13 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { createWorkspace } from './workspace/workspace'
 import { registerIpc } from './ipc'
+import { createHookService } from './pty/hookService'
+import { createCliSessions, type CliSessions } from './pty/cliSession'
 
 let mainWindow: BrowserWindow | null = null
+
+// Late-bound so the hook onHook closure can reach the controller created after it.
+let cliRef: CliSessions | null = null
 
 function createWindow(): void {
   // Create the browser window.
@@ -63,7 +68,16 @@ app
 
     const root = join(app.getPath('userData'), 'workspace')
     await createWorkspace(root)
-    registerIpc(root, () => mainWindow)
+    const send = (channel: string, payload: unknown): void =>
+      mainWindow?.webContents.send(channel, payload)
+    // The hook service must exist before cli sessions so start() can register tokens.
+    const hooks = await createHookService({
+      onHook: (sessionId) => cliRef?.recheck(sessionId)
+    })
+    const cli = createCliSessions({ root, hooks, send })
+    // Give the hook callback a handle to the controller (created after hooks).
+    cliRef = cli
+    registerIpc(root, () => mainWindow, cli)
 
     createWindow()
 
