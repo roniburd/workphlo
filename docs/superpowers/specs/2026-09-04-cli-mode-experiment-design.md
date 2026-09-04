@@ -48,6 +48,23 @@ produce. It is additive — the existing document flow is untouched.
 | Result surface | **Split view: terminal + live HTML artifact pane** (reuse `HtmlBody`) |
 | Steering mechanism | **Injected skill + system-prompt append** |
 
+### Validated against stablyai/orca
+
+A prior-art investigation of [stablyai/orca](https://github.com/stablyai/orca) — a
+near-identical stack (Electron + electron-vite + React + Zustand + node-pty +
+xterm, running 35+ CLI agents) — confirmed this architecture and produced
+several concrete refinements now folded in below:
+
+- **Observe the agent out-of-band; never parse the terminal.** Orca uses (a)
+  Claude Code **hooks** POSTing to a local loopback server and (b) transcript
+  file-watching. We adopt a **`Stop` hook as the primary "artifact ready"
+  signal**, with file-watching as backup (§4).
+- **Completion is unreliable from `Stop` alone** (Claude omits it on Ctrl-C) —
+  gate "artifact ready" on `Stop` hook **plus** `result.html` mtime.
+- **File-watching gotchas** copied verbatim from Orca's transcript watcher (§4).
+- **node-pty native-build traps beyond the ABI rebuild** — darwin asar /
+  spawn-helper specifics (§7).
+
 ## Architecture
 
 The one architecture that respects Electron's security boundary
@@ -128,13 +145,43 @@ On CLI-session create, scaffold the session working dir:
 Both artifacts are plain files on disk — inspectable and editable by the user,
 which is the point of "implicit skills/prompt."
 
-### 4. Artifact watcher (main) — `src/main/pty/artifactWatcher.ts`
+### 4. Completion signal + artifact detection (main)
 
-- `watchArtifact(sessionId, cwd)` watches `<cwd>/result.html`
-  (`fs.watch` with a debounce, ~150 ms, to coalesce rapid writes).
-- On change: read the file, push `{ sessionId, html }` over `wf:artifactUpdate`.
-- Handles the file not yet existing (starts empty; first write triggers the
-  push). Stops on session close / pty exit.
+Two cooperating mechanisms decide *when* the HTML is ready and push it. Neither
+is trusted alone (Orca lesson: `Stop` is sometimes omitted; `fs.watch` is
+best-effort).
+
+**4a. Claude Code `Stop` hook — `src/main/pty/hookService.ts`.** On CLI-session
+create:
+
+- Start a loopback HTTP server bound to `127.0.0.1:0` (ephemeral port). It
+  authenticates via a per-session random token (`X-Workphlo-Hook-Token`),
+  **always replies `204`**, and **fails open** — a broken hook must never block
+  the agent.
+- Scaffold `<cwd>/.claude/settings.json` (project-scoped, so it only affects
+  this session's cwd) registering a `Stop` hook (and optionally
+  `PostToolUse(Write)`) that runs a small managed script POSTing the hook's
+  stdin JSON to `http://127.0.0.1:<port>/hook`. Port + token are passed via the
+  pty env (`WORKPHLO_HOOK_PORT`, `WORKPHLO_HOOK_TOKEN`).
+- On a `Stop` hook hit, trigger an artifact read (4b) and push over
+  `wf:artifactUpdate` — but only if `result.html` exists and its mtime is newer
+  than the last push (mtime gate, per the "don't trust `Stop` alone" lesson).
+
+**4b. Hardened artifact watcher — `src/main/pty/artifactWatcher.ts`.** Backup /
+liveness path, adopting Orca's transcript-watcher gotchas:
+
+- Watch the **parent directory** (`<cwd>`), not the file — survives macOS
+  atomic-replace writes; filter events to basename `result.html`.
+- Treat `fs.watch` as best-effort **acceleration only**; back it with a **~1 s
+  reconciliation poll** that re-stats the file (the real liveness guarantee).
+- **Debounce ~40 ms** (with a small max-drain) to coalesce burst writes.
+- Handle the file **not existing yet** (poll with backoff until first write).
+- Push `{ sessionId, html }` over `wf:artifactUpdate` only when content changed
+  (mtime/size gate). Since `result.html` is a whole-file artifact (not an
+  append log), we read the full file — but guard against reading a **partial
+  write** by re-reading once on a very-recent mtime, rather than pushing a
+  torn document.
+- Stops on session close / pty exit.
 
 ### 5. IPC + preload
 
@@ -175,12 +222,20 @@ non-active sessions.
 
 ### 7. Native module build
 
-`node-pty` is a native addon and must be rebuilt against the Electron ABI.
+`node-pty` is a native addon and must be rebuilt against the **Electron ABI**
+(not the Node ABI). Orca's traps, all of which apply to us on darwin:
 
-- Add `@electron/rebuild` and a `postinstall` (or an explicit documented
-  `npm run rebuild`) step.
-- Ensure `node-pty` is treated as an external/commonjs dependency in
-  `electron.vite.config.ts` for the main process (not bundled).
+- Use `@electron/rebuild`'s JS API with `onlyModules: ['node-pty']` in a
+  `postinstall` (or documented `npm run rebuild`) step. Optionally add a
+  verifier that require-probes `node-pty` under the actual Electron binary and
+  rebuilds on failure.
+- Treat `node-pty` as an external/commonjs dependency in
+  `electron.vite.config.ts` for the main process (do **not** bundle it).
+- **Packaging (when we get there):** the `.node` must be **asar-unpacked**
+  (`app.asar → app.asar.unpacked` path rewrite), and on **macOS the node-pty
+  `spawn-helper` loses its executable bit inside asar → `chmod +x` it at
+  runtime or `pty.spawn` fails `EACCES`**. For the dev experiment (`npm run
+  dev`, unpacked) this doesn't bite yet, but document it.
 - Document the rebuild in `README.md`.
 
 ## Data Flow
@@ -190,13 +245,18 @@ non-active sessions.
    working dir with `.claude/skills/workphlo-html-report/` (§3). No
    `document.md` sections.
 3. Renderer opens `CliSessionView`; `TerminalPane` calls `wf:pty:start`.
-4. Main `ptyHost` spawns interactive `claude` in the cwd with the appended
-   system prompt + model; `artifactWatcher` begins watching `result.html`.
+4. Main starts the `hookService` loopback server (§4a), scaffolds
+   `.claude/settings.json` with the `Stop` hook, then `ptyHost` spawns
+   interactive `claude` in the cwd with the appended system prompt + model +
+   hook env vars; `artifactWatcher` begins watching `<cwd>` (§4b).
 5. User types in xterm; keystrokes → `wf:pty:input` → pty. Claude's output
    streams back via `wf:pty:data` → xterm — the user watches it work.
-6. Claude writes/updates `result.html` → watcher debounces, reads, pushes
-   `wf:artifactUpdate` → `ArtifactPane` re-renders the styled HTML live.
-7. Closing the session / killing the pty stops the watcher and the process.
+6. Claude writes/updates `result.html`. It surfaces via **either** the `Stop`
+   hook (primary, mtime-gated) **or** the reconciliation-polled watcher
+   (backup) → main reads the file → pushes `wf:artifactUpdate` →
+   `ArtifactPane` re-renders the styled HTML live.
+7. Closing the session / killing the pty stops the watcher, the hook server,
+   and the process.
 
 ## Error Handling
 
