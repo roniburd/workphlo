@@ -34,6 +34,11 @@ export interface SessionMeta {
   name: string
   templateId: string
   engine: EngineKind
+  // Session experience mode. 'document' (default) = the live-section document.
+  // 'cli' = embedded interactive `claude` terminal + live HTML artifact pane.
+  // Distinct from `engine` (the headless execution adapter kind). Optional so
+  // pre-existing session.json (no field) reads back as 'document'.
+  mode?: 'document' | 'cli'
   status: string
   sectionStatus?: Record<string, SectionStatus>
   // Per-section model overrides (spec §2.2). Section override wins over the
