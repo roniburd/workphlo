@@ -14,6 +14,13 @@ function Node({ node }: { node: TreeNode }): React.JSX.Element {
     await window.workphlo.createSession(node.id, name)
     await loadTree()
   }
+  const [addingCliSession, setAddingCliSession] = useState(false)
+  const addCliSessionBtn = useRef<HTMLButtonElement>(null)
+  const addCliSession = async (name: string): Promise<void> => {
+    setAddingCliSession(false)
+    await window.workphlo.createSession(node.id, name, 'cli')
+    await loadTree()
+  }
   return (
     <li>
       <span className="group flex items-center justify-between gap-1">
@@ -37,6 +44,19 @@ function Node({ node }: { node: TreeNode }): React.JSX.Element {
             + Session
           </button>
         )}
+        {node.type === 'project' && (
+          <button
+            ref={addCliSessionBtn}
+            aria-label={`Add CLI session to ${node.name}`}
+            title="New CLI session"
+            className="px-1 text-xs text-slate-400 opacity-0 hover:text-slate-700 group-hover:opacity-100"
+            // Idempotent: clicking again while the input is open is a no-op, so
+            // it never blows away text the user has already typed.
+            onClick={() => setAddingCliSession(true)}
+          >
+            + CLI
+          </button>
+        )}
       </span>
       {addingSession && (
         <InlineInput
@@ -44,6 +64,14 @@ function Node({ node }: { node: TreeNode }): React.JSX.Element {
           onSubmit={(name) => void addSession(name)}
           onCancel={() => setAddingSession(false)}
           restoreFocusRef={addSessionBtn}
+        />
+      )}
+      {addingCliSession && (
+        <InlineInput
+          placeholder="CLI session name"
+          onSubmit={(name) => void addCliSession(name)}
+          onCancel={() => setAddingCliSession(false)}
+          restoreFocusRef={addCliSessionBtn}
         />
       )}
       {node.children.length > 0 && (
